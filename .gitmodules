@@ -1,0 +1,3 @@
+[submodule "ext/GraphicsToolkit"]
+	path = External/GraphicsToolkit
+	url = https://github.com/ScaredHD/GraphicsToolkit.git
