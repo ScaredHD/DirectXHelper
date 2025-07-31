@@ -1,6 +1,0 @@
-[submodule "ext/GraphicsToolkit"]
-	path = External/GraphicsToolkit
-	url = https://github.com/ScaredHD/GraphicsToolkit.git
-[submodule "imgui"]
-	path = imgui
-	url = https://github.com/ocornut/imgui.git
