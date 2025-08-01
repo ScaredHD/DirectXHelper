@@ -1,9 +1,6 @@
 #pragma once
-#include <d3d12.h>
-#include <d3dx12_core.h>
-#include <wrl/client.h>
 
-#include "D3DUtils.h"
+#include "PCH.h"
 
 class DefaultBuffer
 {

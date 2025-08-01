@@ -1,20 +1,7 @@
-#ifndef D3DUTILS_H_
-#define D3DUTILS_H_
 
-#include <cmath>
-#include <d3d12.h>
-#include <d3dcompiler.h>
-#include <dxgi1_6.h>
-#include <exception>
-#include <random>
-#include <stdio.h>
-#include <windows.h>
-#include <wrl/client.h>
+#pragma once
 
-#include "d3dx12.h"
-#include "DirectXMath.h"
-#include "DirectXPackedVector.h"
-
+#include "PCH.h"
 
 namespace DX
 {
@@ -116,4 +103,4 @@ float RandomFloat(float min, float max);
 }  // namespace dxh
 
 
-#endif  // D3DUTILS_H_
+

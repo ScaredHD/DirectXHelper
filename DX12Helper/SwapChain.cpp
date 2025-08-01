@@ -1,6 +1,7 @@
 #include "SwapChain.h"
 
-#include "D3DUtils.h"
+
+
 
 using DX::ThrowIfFailed;
 using Microsoft::WRL::ComPtr;
@@ -63,45 +64,5 @@ void SwapChain::Present() const
 {
   ThrowIfFailed(swapChain_->Present(0, 0));
 }
-
-DrawCommands ClearBackBuffer(const dxh::SwapChain* swapChain, float r, float g, float b, float a)
-{
-  return [=](ID3D12GraphicsCommandList* cmdList) {
-    float clearColor[] = {r, g, b, a};
-    cmdList->ClearRenderTargetView(swapChain->CurrentRTV(), clearColor, 0, nullptr);
-  };
-}
-
-// DrawCommands Transition(SwapChain* swapChain, D3D12_RESOURCE_STATES toState)
-// {
-//   auto stateBefore = swapChain->currentState;
-//   swapChain->currentState = toState;
-//   return Transition(swapChain->CurrentBuffer(), stateBefore, toState);
-// }
-
-// DrawCommands CopyTexture2DToSwapChain(
-//   SwapChain* dst,
-//   UINT dstX,
-//   UINT dstY,
-//   RawResource* src,
-//   UINT srcXMin,
-//   UINT srcYMin,
-//   UINT srcXMax,
-//   UINT srcYMax
-// )
-// {
-//   auto dstStateOld = dst->currentState;
-//   auto srcStateOld = src->CurrentState();
-//   return MergeCommands(
-//     dxh::Transition(dst->CurrentBuffer(), dstStateOld, D3D12_RESOURCE_STATE_COPY_DEST),
-//     dxh::Transition(src->Resource(), srcStateOld, D3D12_RESOURCE_STATE_COPY_SOURCE),
-//     dxh::CopyTexture(
-//       dst->CurrentBuffer(), dstX, dstY, 0, src->Resource(), srcXMin, srcYMin, 0, srcXMax,
-//       srcYMax, 1
-//     ),
-//     dxh::Transition(src->Resource(), D3D12_RESOURCE_STATE_COPY_SOURCE, srcStateOld),
-//     dxh::Transition(dst->CurrentBuffer(), D3D12_RESOURCE_STATE_COPY_DEST, dstStateOld)
-//   );
-// }
 
 }  // namespace dxh

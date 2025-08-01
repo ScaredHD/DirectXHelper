@@ -1,6 +1,5 @@
 #include "Fence.h"
 
-#include "D3DUtils.h"
 
 using DX::ThrowIfFailed;
 
@@ -16,7 +15,7 @@ void dxh::Fence::WaitForGPUCompletion(ID3D12CommandQueue* cmdQueue)
   ThrowIfFailed(cmdQueue->Signal(fence_.Get(), fenceValue));
 
   if (fence_->GetCompletedValue() < fenceValue) {
-    auto event = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+    HANDLE event = CreateEvent(nullptr, FALSE, FALSE, nullptr);
     ThrowIfFailed(fence_->SetEventOnCompletion(fenceValue, event));
     WaitForSingleObject(event, INFINITE);
   }

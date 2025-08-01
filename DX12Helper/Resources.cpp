@@ -2,7 +2,6 @@
 
 #include <iostream>
 
-#include "D3DUtils.h"
 
 static int g_resourceID = 0;
 
@@ -101,18 +100,20 @@ int ComputePaddedSize(int size, int alignment)
 std::unique_ptr<Texture2D>
 CreateRenderTargetTexture2D(ID3D12Device* device, DXGI_FORMAT format, UINT64 width, UINT height)
 {
+  auto BlackClear = BlackClearValue(format);
   return std::make_unique<Texture2D>(
-    device, D3D12_RESOURCE_STATE_RENDER_TARGET, &BlackClearValue(format), format, width, height, 1,
-    0, 1, 0, D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET, D3D12_TEXTURE_LAYOUT_UNKNOWN, 0
+    device, D3D12_RESOURCE_STATE_RENDER_TARGET, &BlackClear, format, width, height, 1, 0, 1, 0,
+    D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET, D3D12_TEXTURE_LAYOUT_UNKNOWN, 0
   );
 }
 
 std::unique_ptr<Texture2D>
 CreateDepthStencilTexture2D(ID3D12Device* device, DXGI_FORMAT format, UINT64 width, UINT height)
 {
+  CD3DX12_CLEAR_VALUE clearValue = DefaultDepthStencilClearValue(format);
   return std::make_unique<Texture2D>(
-    device, D3D12_RESOURCE_STATE_DEPTH_WRITE, &DefaultDepthStencilClearValue(format), format, width,
-    height, 1, 0, 1, 0, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL, D3D12_TEXTURE_LAYOUT_UNKNOWN, 0
+    device, D3D12_RESOURCE_STATE_DEPTH_WRITE, &clearValue, format, width, height, 1, 0, 1, 0,
+    D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL, D3D12_TEXTURE_LAYOUT_UNKNOWN, 0
   );
 }
 
@@ -145,171 +146,6 @@ RawResource::RawResource(
     &heapProp, heapFlag, &desc, state, clearValue, IID_PPV_ARGS(resource_.GetAddressOf())
   ));
   id_ = g_resourceID++;
-}
-
-DrawCommands TrackedTransition(RawResource* resource, D3D12_RESOURCE_STATES toState)
-{
-  return [=](ID3D12GraphicsCommandList* cmdList) {
-    auto stateBefore = resource->CurrentState();
-    auto stateAfter = toState;
-    DoTrackedTransition(cmdList, resource, stateBefore, stateAfter);
-  };
-}
-
-DrawCommands RevertLastTransition(RawResource* resource)
-{
-  return [=](ID3D12GraphicsCommandList* cmdList) {
-    auto stateBefore = resource->CurrentState();
-    auto stateAfter = resource->PreviousState();
-    DoTrackedTransition(cmdList, resource, stateBefore, stateAfter);
-  };
-}
-
-DrawCommands UntrackedTransition(
-  ID3D12Resource* resource,
-  D3D12_RESOURCE_STATES stateBefore,
-  D3D12_RESOURCE_STATES stateAfter
-)
-{
-  if (stateBefore == stateAfter) {
-    return EmptyDrawCommand();
-  }
-  return [=](ID3D12GraphicsCommandList* cmdList) {
-    auto t = CD3DX12_RESOURCE_BARRIER::Transition(resource, stateBefore, stateAfter);
-    cmdList->ResourceBarrier(1, &t);
-  };
-}
-
-void DoUntrackedTransition(
-  ID3D12GraphicsCommandList* cmdList,
-  ID3D12Resource* resource,
-  D3D12_RESOURCE_STATES stateBefore,
-  D3D12_RESOURCE_STATES stateAfter
-)
-{
-  auto t = CD3DX12_RESOURCE_BARRIER::Transition(resource, stateBefore, stateAfter);
-  cmdList->ResourceBarrier(1, &t);
-}
-
-
-DrawCommands CopyResourceUntracked(ID3D12Resource* dst, ID3D12Resource* src)
-{
-  return [=](ID3D12GraphicsCommandList* cmdList) { cmdList->CopyResource(dst, src); };
-}
-
-DrawCommands CopyResource(RawResource* dst, RawResource* src)
-{
-  return MergeCommands(
-    TrackedTransition(dst, D3D12_RESOURCE_STATE_COPY_DEST),    //
-    TrackedTransition(src, D3D12_RESOURCE_STATE_COPY_SOURCE),  //
-    CopyResourceUntracked(dst->Resource(), src->Resource()),   //
-    RevertLastTransition(src),                                 //
-    RevertLastTransition(dst)
-  );
-}
-
-DrawCommands CopyBufferUntracked(
-  ID3D12Resource* dst,
-  UINT64 dstOffset,
-  ID3D12Resource* src,
-  UINT64 srcOffset,
-  UINT64 byteSize
-)
-{
-  return [=](ID3D12GraphicsCommandList* cmdList) {
-    cmdList->CopyBufferRegion(dst, dstOffset, src, srcOffset, byteSize);
-  };
-}
-
-DrawCommands
-CopyBuffer(RawResource* dst, UINT64 dstOffset, RawResource* src, UINT64 srcOffset, UINT64 byteSize)
-{
-  return MergeCommands(
-    TrackedTransition(dst, D3D12_RESOURCE_STATE_COPY_DEST),                                 //
-    TrackedTransition(src, D3D12_RESOURCE_STATE_COPY_SOURCE),                               //
-    CopyBufferUntracked(dst->Resource(), dstOffset, src->Resource(), srcOffset, byteSize),  //
-    RevertLastTransition(dst),                                                              //
-    RevertLastTransition(src)
-  );
-}
-
-DrawCommands CopyTextureUntracked(
-  ID3D12Resource* dst,
-  UINT dstX,
-  UINT dstY,
-  UINT dstZ,
-  ID3D12Resource* src,
-  D3D12_BOX srcBox
-)
-{
-  return [=](ID3D12GraphicsCommandList* cmdList) {
-    D3D12_TEXTURE_COPY_LOCATION dstLoc{};
-    dstLoc.pResource = dst;
-    dstLoc.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
-    dstLoc.SubresourceIndex = 0;
-
-    D3D12_TEXTURE_COPY_LOCATION srcLoc{};
-    srcLoc.pResource = src;
-    srcLoc.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
-    srcLoc.SubresourceIndex = 0;
-
-    cmdList->CopyTextureRegion(&dstLoc, dstX, dstY, dstZ, &srcLoc, &srcBox);
-  };
-}
-
-DrawCommands CopyTextureUntracked(
-  ID3D12Resource* dst,
-  UINT dstX,
-  UINT dstY,
-  UINT dstZ,
-  ID3D12Resource* src,
-  UINT srcXMin,
-  UINT srcYMin,
-  UINT srcZMin,
-  UINT srcXMax,
-  UINT srcYMax,
-  UINT srcZMax
-)
-{
-  D3D12_BOX srcBox{};
-  srcBox.left = srcXMin;
-  srcBox.top = srcYMin;
-  srcBox.front = srcZMin;
-  srcBox.right = srcXMax;
-  srcBox.bottom = srcYMax;
-  srcBox.back = srcZMax;
-  return CopyTextureUntracked(dst, dstX, dstY, dstZ, src, srcBox);
-}
-
-DrawCommands CopyTexture(
-  RawResource* dst,
-  UINT dstX,
-  UINT dstY,
-  UINT dstZ,
-  RawResource* src,
-  UINT srcXMin,
-  UINT srcYMin,
-  UINT srcZMin,
-  UINT srcXMax,
-  UINT srcYMax,
-  UINT srcZMax
-)
-{
-  return MergeCommands(
-    TrackedTransition(dst, D3D12_RESOURCE_STATE_COPY_DEST),    //
-    TrackedTransition(src, D3D12_RESOURCE_STATE_COPY_SOURCE),  //
-    CopyTextureUntracked(
-      dst->Resource(), dstX, dstY, dstZ, src->Resource(), srcXMin, srcYMin, srcZMin, srcXMax,
-      srcYMax, srcZMax
-    ),                          //
-    RevertLastTransition(dst),  //
-    RevertLastTransition(src)
-  );
-}
-
-DrawCommands CopyTexture2D(Texture2D* dst, Texture2D* src)
-{
-  return CopyTexture(dst, 0, 0, 0, src, 0, 0, 0, src->Width(), src->Height(), 1);
 }
 
 

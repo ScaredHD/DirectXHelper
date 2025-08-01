@@ -1,5 +1,4 @@
-#ifndef DXH_AUTO_TIMER_UTILITY_H_
-#define DXH_AUTO_TIMER_UTILITY_H_
+#pragma once
 
 #include <chrono>
 #include <string>
@@ -16,8 +15,8 @@
 #endif
 
 
-#ifndef DXH_CREATE_SCOPED_AUTO_TIMER
-  #define DXH_CREATE_SCOPED_AUTO_TIMER(countType, resVarName, timeUnit)                \
+#ifndef DXH_SCOPED_AUTO_TIMER
+  #define DXH_SCOPED_AUTO_TIMER(countType, resVarName, timeUnit)                \
     countType resVarName{};                                                     \
     std::chrono::duration<countType, timeUnit::period> resVarName##_duration{}; \
     DXH_DECLARE_SCOPED_AUTO_TIMER(countType, resVarName, timeUnit)
@@ -91,6 +90,3 @@ private:
 };
 
 }  // namespace dxh
-
-
-#endif  // DXH_AUTO_TIMER_UTILITY_H_

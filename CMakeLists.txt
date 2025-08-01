@@ -14,12 +14,14 @@ add_library(DX12Helper ${helperSource})
 target_link_libraries(
     DX12Helper 
     PUBLIC DirectX-Header
-           imgui
-           Gtk
            d3d12.lib
            d3dcompiler.lib
            dxgi.lib
-           tinyobjloader
+)
+
+target_precompile_headers(
+    DX12Helper
+    PRIVATE DX12Helper/PCH.h
 )
 
 target_include_directories(

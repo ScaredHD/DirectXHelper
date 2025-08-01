@@ -1,0 +1,30 @@
+CompileFlags:
+  Add: [-Wall, -Wextra, -std=c++17]
+  Remove: [-W*]
+  Compiler: clang++
+
+Diagnostics:
+  ClangTidy:
+    Add: [modernize*, bugprone*, readability*, performance*]
+    Remove:
+      [
+        modernize-use-trailing-return-type,
+        modernize-avoid-c-arrays,
+        modernize-use-nodiscard,
+        bugprone-easily-swappable-parameters,
+        readability-identifier-length,
+        readability-magic-numbers,
+        readability-implicit-bool-conversion,
+        readability-convert-member-functions-to-static,
+        readability-braces-around-statements,
+        readability-uppercase-literal-suffix,
+        readability-math-missing-parentheses,
+        readability-avoid-nested-conditional-operator,
+        modernize-use-nodiscard,
+        readability-function-cognitive-complexity,
+        readability-named-parameter,
+      ]
+  UnusedIncludes: None
+
+Hover:
+  ShowAKA: Yes

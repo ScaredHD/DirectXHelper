@@ -1,6 +1,5 @@
 #include "CommandList.h"
 
-#include "D3DUtils.h"
 
 using DX::ThrowIfFailed;
 

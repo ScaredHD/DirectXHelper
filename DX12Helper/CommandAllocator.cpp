@@ -1,6 +1,5 @@
 #include "CommandAllocator.h"
 
-#include "D3DUtils.h"
 
 using DX::ThrowIfFailed;
 

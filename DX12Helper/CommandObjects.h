@@ -1,5 +1,4 @@
-#ifndef DXH_COMMANDOBJECTS_H_
-#define DXH_COMMANDOBJECTS_H_
+#pragma once
 
 #include "CommandAllocator.h"
 #include "CommandList.h"
@@ -24,8 +23,4 @@ void ExecuteQueuedCommands(
 );
 
 
-
 }  // namespace dxh
-
-
-#endif  // DXH_COMMANDOBJECTS_H_

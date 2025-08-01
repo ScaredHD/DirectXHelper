@@ -1,6 +1,5 @@
 #include "Device.h"
 
-#include "D3DUtils.h"
 
 using DX::ThrowIfFailed;
 using Microsoft::WRL::ComPtr;

@@ -1,13 +1,11 @@
-#ifndef DXH_SWAPCHAIN_H_
-#define DXH_SWAPCHAIN_H_
 
-#include <d3d12.h>
-#include <dxgi1_4.h>
+#pragma once
+
 #include <functional>
-#include <vector>
-#include <wrl/client.h>
 
+#include "PCH.h"
 #include "Resources.h"
+
 
 namespace dxh
 {
@@ -58,22 +56,4 @@ private:
   unsigned int bufferCount_ = 0;
 };
 
-
-DrawCommands ClearBackBuffer(const SwapChain* swapChain, float r, float g, float b, float a);
-
-// DrawCommands CopyTexture2DToSwapChain(
-//   SwapChain* dst,
-//   UINT dstX,
-//   UINT dstY,
-//   RawResource* src,
-//   UINT srcXMin,
-//   UINT srcYMin,
-//   UINT srcXMax,
-//   UINT srcYMax
-// );
-
-// DrawCommands Transition(SwapChain* swapChain, D3D12_RESOURCE_STATES toState);
-
 }  // namespace dxh
-
-#endif  // DXH_SWAPCHAIN_H_

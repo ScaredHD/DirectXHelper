@@ -1,6 +1,5 @@
 #include "DescriptorHeap.h"
 
-#include "D3DUtils.h"
 
 namespace dxh
 {

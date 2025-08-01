@@ -1,9 +1,7 @@
-#ifndef DXH_DEVICE_H_
-#define DXH_DEVICE_H_
 
-#include <d3d12.h>
-#include <dxgi1_4.h>
-#include <wrl/client.h>
+#pragma once
+
+#include "PCH.h"
 
 namespace dxh
 {
@@ -22,4 +20,3 @@ private:
 }  // namespace dxh
 
 
-#endif  // DXH_DEVICE_H_

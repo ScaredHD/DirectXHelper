@@ -1,10 +1,6 @@
 #pragma once
 
-#include <d3d12.h>
-#include <memory>
-#include <wrl/client.h>
-
-#include "d3dx12.h"
+#include "PCH.h"
 
 namespace dxh
 {
@@ -68,7 +64,7 @@ public:
 class ShaderResourceView : public ResourceView
 {
 public:
-  explicit ShaderResourceView::ShaderResourceView(
+  explicit ShaderResourceView(
     ID3D12Device* device,
     ID3D12Resource* resource,
     D3D12_SHADER_RESOURCE_VIEW_DESC desc,

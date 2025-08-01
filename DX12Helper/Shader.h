@@ -1,9 +1,7 @@
-#ifndef DXH_SHADER_H_
-#define DXH_SHADER_H_
 
-#include <d3d12.h>
-#include <string>
-#include <wrl/client.h>
+#pragma once
+
+#include "PCH.h"
 
 namespace dxh
 {
@@ -55,4 +53,3 @@ D3D12_SHADER_BYTECODE ShaderByteCode(
 }  // namespace dxh
 
 
-#endif  // DXH_SHADER_H_

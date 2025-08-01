@@ -1,10 +1,7 @@
-#ifndef DXH_COMMANDLIST_H_
-#define DXH_COMMANDLIST_H_
+#pragma once
 
-#include <d3d12.h>
-#include <wrl/client.h>
+#include "PCH.h"
 
-#include "DrawCommands.h"
 
 namespace dxh
 {
@@ -18,19 +15,10 @@ public:
 
   void Close() const { cmdList_->Close(); }
 
-  std::vector<DrawCommands> QueuedDrawCommands() const { return queuedDrawCmds_; }
-
-  void ClearQueuedDrawCommands() { queuedDrawCmds_.clear(); }
-
-  void RecordDrawCommands(const DrawCommands& cmds) { queuedDrawCmds_.push_back(cmds); }
 
 private:
   Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList> cmdList_;
-
-  std::vector<DrawCommands> queuedDrawCmds_;
 };
 
 
 }  // namespace dxh
-
-#endif  // DXH_COMMANDLIST_H_

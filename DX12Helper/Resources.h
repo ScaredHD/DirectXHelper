@@ -1,13 +1,8 @@
-#ifndef DXH_RESOURCES_H_
-#define DXH_RESOURCES_H_
 
-#include <d3d12.h>
-#include <stdexcept>
-#include <string>
-#include <wrl/client.h>
+#pragma once
 
-#include "d3dx12.h"
-#include "DrawCommands.h"
+#include "PCH.h"
+
 #include "Views.h"
 
 
@@ -67,22 +62,6 @@ private:
   bool debugEnabled_ = false;
 };
 
-DrawCommands TrackedTransition(RawResource* resource, D3D12_RESOURCE_STATES toState);
-
-DrawCommands RevertLastTransition(RawResource* resource);
-
-DrawCommands UntrackedTransition(
-  ID3D12Resource* resource,
-  D3D12_RESOURCE_STATES stateBefore,
-  D3D12_RESOURCE_STATES stateAfter
-);
-
-void DoUntrackedTransition(
-  ID3D12GraphicsCommandList* cmdList,
-  ID3D12Resource* resource,
-  D3D12_RESOURCE_STATES stateBefore,
-  D3D12_RESOURCE_STATES stateAfter
-);
 
 class BufferResource : public RawResource
 {
@@ -323,61 +302,6 @@ struct RenderTarget2D {
   std::unique_ptr<UnorderedAccessView> uav;
 };
 
-DrawCommands CopyResourceUntracked(ID3D12Resource* dst, ID3D12Resource* src);
-
-DrawCommands CopyResource(RawResource* dst, RawResource* src);
-
-DrawCommands CopyBufferUntracked(
-  ID3D12Resource* dst,
-  UINT64 dstOffset,
-  ID3D12Resource* src,
-  UINT64 srcOffset,
-  UINT64 byteSize
-);
-
-DrawCommands
-CopyBuffer(RawResource* dst, UINT64 dstOffset, RawResource* src, UINT64 srcOffset, UINT64 byteSize);
-
-DrawCommands CopyTextureUntracked(
-  ID3D12Resource* dst,
-  UINT dstX,
-  UINT dstY,
-  UINT dstZ,
-  ID3D12Resource* src,
-  D3D12_BOX srcBox
-);
-
-DrawCommands CopyTextureUntracked(
-  ID3D12Resource* dst,
-  UINT dstX,
-  UINT dstY,
-  UINT dstZ,
-  ID3D12Resource* src,
-  UINT srcXMin,
-  UINT srcYMin,
-  UINT srcZMin,
-  UINT srcXMax,
-  UINT srcYMax,
-  UINT srcZMax
-);
-
-DrawCommands CopyTexture(
-  RawResource* dst,
-  UINT dstX,
-  UINT dstY,
-  UINT dstZ,
-  RawResource* src,
-  UINT srcXMin,
-  UINT srcYMin,
-  UINT srcZMin,
-  UINT srcXMax,
-  UINT srcYMax,
-  UINT srcZMax
-);
-
-DrawCommands CopyTexture2D(Texture2D* dst, Texture2D* src);
-
 
 }  // namespace dxh
 
-#endif  // DXH_RESOURCES_H_

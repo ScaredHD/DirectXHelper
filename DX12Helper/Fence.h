@@ -1,9 +1,7 @@
-#ifndef DXH_FENCE_H_
-#define DXH_FENCE_H_
+#pragma once
 
 
-#include <d3d12.h>
-#include <wrl/client.h>
+#include "PCH.h"
 
 namespace dxh
 {
@@ -22,7 +20,4 @@ private:
 };
 
 
-
 }  // namespace dxh
-
-#endif  // DXH_FENCE_H_
