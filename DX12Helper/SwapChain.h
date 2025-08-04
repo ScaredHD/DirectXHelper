@@ -6,43 +6,49 @@
 #include "PCH.h"
 #include "Resources.h"
 
+namespace dxh {
 
-namespace dxh
-{
-class SwapChain
-{
+template <size_t bufferCount> class SwapChain {
 public:
-  /// @param bufferRTVAlloc For i-th buffer in swap chain, return handle to descriptor heap where
-  /// this RTV should be created
-  explicit SwapChain(
-    ID3D12Device* device,
-    IDXGIFactory4* factory,
-    ID3D12CommandQueue* cmdQueue,
-    HWND window,
-    unsigned int bufferCount,
-    int viewportWidth,
-    int viewportHeight,
-    std::function<D3D12_CPU_DESCRIPTOR_HANDLE(int)> bufferRTVAlloc
-  );
+  IDXGISwapChain4 *Get() const { return swapChain.Get(); }
 
-  IDXGISwapChain* Get() const { return swapChain_.Get(); }
+
+
+private:
+  Microsoft::WRL::ComPtr<IDXGISwapChain4> swapChain;
+};
+
+class SwapChainLegacy {
+public:
+  /// @param bufferRTVAlloc For i-th buffer in swap chain, return handle to
+  /// descriptor heap where this RTV should be created
+  explicit SwapChainLegacy(
+      ID3D12Device *device, IDXGIFactory4 *factory,
+      ID3D12CommandQueue *cmdQueue, HWND window, unsigned int bufferCount,
+      int viewportWidth, int viewportHeight,
+      std::function<D3D12_CPU_DESCRIPTOR_HANDLE(int)> bufferRTVAlloc);
+
+  IDXGISwapChain *Get() const { return swapChain_.Get(); }
 
   void Swap() { currentBufferIndex = (currentBufferIndex + 1) % bufferCount_; }
 
-  RawResource* Buffer(int i) const { return buffers_[i].get(); }
+  RawResource *Buffer(int i) const { return buffers_[i].get(); }
 
-  RawResource* CurrentBuffer() const { return buffers_[currentBufferIndex].get(); }
+  RawResource *CurrentBuffer() const {
+    return buffers_[currentBufferIndex].get();
+  }
 
   D3D12_CPU_DESCRIPTOR_HANDLE CPURtv(int i) { return swapChainRTVs_[i]; }
 
-  D3D12_CPU_DESCRIPTOR_HANDLE CurrentRTV() const { return swapChainRTVs_[currentBufferIndex]; }
+  D3D12_CPU_DESCRIPTOR_HANDLE CurrentRTV() const {
+    return swapChainRTVs_[currentBufferIndex];
+  }
 
   unsigned int BufferCount() const { return bufferCount_; }
 
   unsigned int CurrentBufferIndex() const { return currentBufferIndex; }
 
   void Present() const;
-
 
 private:
   Microsoft::WRL::ComPtr<IDXGISwapChain1> swapChain_;
@@ -56,4 +62,4 @@ private:
   unsigned int bufferCount_ = 0;
 };
 
-}  // namespace dxh
+} // namespace dxh

@@ -10,7 +10,7 @@ namespace dxh
 {
 
 
-SwapChain::SwapChain(
+SwapChainLegacy::SwapChainLegacy(
   ID3D12Device* device,
   IDXGIFactory4* factory,
   ID3D12CommandQueue* cmdQueue,
@@ -60,7 +60,7 @@ SwapChain::SwapChain(
   }
 }
 
-void SwapChain::Present() const
+void SwapChainLegacy::Present() const
 {
   ThrowIfFailed(swapChain_->Present(0, 0));
 }
