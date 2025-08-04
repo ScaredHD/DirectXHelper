@@ -1,59 +1,123 @@
-
 #pragma once
 
-#include <functional>
+#include <array>
 
 #include "PCH.h"
-#include "Resources.h"
 
+using DX::ThrowIfFailed;
 
 namespace dxh
 {
+
+template<size_t bufferCount>
 class SwapChain
 {
 public:
-  /// @param bufferRTVAlloc For i-th buffer in swap chain, return handle to descriptor heap where
-  /// this RTV should be created
-  explicit SwapChain(
-    ID3D12Device* device,
+  SwapChain(
     IDXGIFactory4* factory,
     ID3D12CommandQueue* cmdQueue,
     HWND window,
-    unsigned int bufferCount,
     int viewportWidth,
-    int viewportHeight,
-    std::function<D3D12_CPU_DESCRIPTOR_HANDLE(int)> bufferRTVAlloc
-  );
+    int viewportHeight
+  )
+  {
+    {
+      DXGI_SWAP_CHAIN_DESC1 swapChainDesc{};
+      swapChainDesc.BufferCount = bufferCount;
+      swapChainDesc.Width = viewportWidth;
+      swapChainDesc.Height = viewportHeight;
+      swapChainDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+      swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+      swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+      swapChainDesc.SampleDesc.Count = 1;
+      desc = swapChainDesc;
 
-  IDXGISwapChain* Get() const { return swapChain_.Get(); }
+      Microsoft::WRL::ComPtr<IDXGISwapChain1> swapChain;
+      ThrowIfFailed(factory->CreateSwapChainForHwnd(
+        cmdQueue, window, &swapChainDesc, nullptr, nullptr, swapChain.GetAddressOf()
+      ));
+      ThrowIfFailed(factory->MakeWindowAssociation(window, DXGI_MWA_NO_ALT_ENTER));
 
-  void Swap() { currentBufferIndex = (currentBufferIndex + 1) % bufferCount_; }
+      ThrowIfFailed(swapChain.As(&this->swapChain));
+    }
 
-  RawResource* Buffer(int i) const { return buffers_[i].get(); }
+    for (int i = 0; i < bufferCount; ++i) {
+      ThrowIfFailed(swapChain->GetBuffer(i, IID_PPV_ARGS(&buffers[i])));
+    }
+  }
 
-  RawResource* CurrentBuffer() const { return buffers_[currentBufferIndex].get(); }
+  UINT CurrentBackBufferIndex() const { return swapChain->GetCurrentBackBufferIndex(); }
 
-  D3D12_CPU_DESCRIPTOR_HANDLE CPURtv(int i) { return swapChainRTVs_[i]; }
+  IDXGISwapChain4* Get() const { return swapChain.Get(); }
 
-  D3D12_CPU_DESCRIPTOR_HANDLE CurrentRTV() const { return swapChainRTVs_[currentBufferIndex]; }
+  ID3D12Resource* Buffer(int i) const { return buffers[i].Get(); }
 
-  unsigned int BufferCount() const { return bufferCount_; }
+  DXGI_SWAP_CHAIN_DESC1 Desc() const { return desc; }
 
-  unsigned int CurrentBufferIndex() const { return currentBufferIndex; }
+  UINT Width() const { return desc.Width; }
 
-  void Present() const;
+  UINT Height() const { return desc.Height; }
 
+  DXGI_FORMAT Format() const { return desc.Format; }
 
 private:
-  Microsoft::WRL::ComPtr<IDXGISwapChain1> swapChain_;
-
-  std::vector<std::unique_ptr<RawResource>> buffers_;
-
-  std::vector<D3D12_CPU_DESCRIPTOR_HANDLE> swapChainRTVs_;
-
-  int currentBufferIndex = 0;
-
-  unsigned int bufferCount_ = 0;
+  Microsoft::WRL::ComPtr<IDXGISwapChain4> swapChain;
+  DXGI_SWAP_CHAIN_DESC1 desc;
+  std::array<Microsoft::WRL::ComPtr<ID3D12Resource>, bufferCount> buffers;
 };
+
+template<size_t bufferCount>
+class SwapChainRender
+{
+public:
+  SwapChainRender(
+    ID3D12Device* device,
+    SwapChain<bufferCount>& swapChain,
+    std::array<D3D12_CPU_DESCRIPTOR_HANDLE, bufferCount> bufferRTVs
+  )
+      : swapChain{swapChain},
+        bufferRTVs{bufferRTVs}
+  {
+    for (size_t i = 0; i < bufferCount; ++i) {
+      D3D12_RENDER_TARGET_VIEW_DESC desc{};
+      desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+      desc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
+      desc.Texture2D.MipSlice = 0;
+      desc.Texture2D.PlaneSlice = 0;
+      ID3D12Resource* buffer = swapChain.Buffer(i);
+      if (buffer) {
+        device->CreateRenderTargetView(buffer, &desc, bufferRTVs[i]);
+      }
+    }
+  }
+
+  D3D12_CPU_DESCRIPTOR_HANDLE CurrentRTV()
+  {
+    return bufferRTVs[swapChain.CurrentBackBufferIndex()];
+  }
+
+  ID3D12Resource* CurrentBuffer() { return swapChain.Buffer(swapChain.CurrentBackBufferIndex()); }
+
+  void Present() { ThrowIfFailed(swapChain.Get()->Present(1, 0)); }
+
+private:
+  SwapChain<bufferCount>& swapChain;
+  std::array<D3D12_CPU_DESCRIPTOR_HANDLE, bufferCount> bufferRTVs;
+};
+
+template<size_t n>
+CD3DX12_VIEWPORT MakeViewport(const SwapChain<n>& swapChain)
+{
+  return CD3DX12_VIEWPORT{
+    0.f, 0.f, static_cast<float>(swapChain.Width()), static_cast<float>(swapChain.Height())
+  };
+}
+
+template<size_t n>
+D3D12_RECT MakeScissorRect(const SwapChain<n>& swapChain)
+{
+  return {0, 0, static_cast<LONG>(swapChain.Width()), static_cast<LONG>(swapChain.Height())};
+}
+
 
 }  // namespace dxh

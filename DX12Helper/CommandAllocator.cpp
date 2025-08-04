@@ -1,10 +1,22 @@
 #include "CommandAllocator.h"
 
 
+
 using DX::ThrowIfFailed;
 
-dxh::CommandAllocator::CommandAllocator(ID3D12Device* device)
+namespace dxh
 {
-  ThrowIfFailed(device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT,
-                                               IID_PPV_ARGS(cmdAlloc_.ReleaseAndGetAddressOf())));
+
+CommandAllocator::CommandAllocator(ID3D12Device* device)
+{
+	ThrowIfFailed(device->CreateCommandAllocator(
+		D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(cmdAlloc.ReleaseAndGetAddressOf())
+	));
 }
+
+void CommandAllocator::Reset()
+{
+	ThrowIfFailed(cmdAlloc->Reset());
+}
+
+}  // namespace dxh

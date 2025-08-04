@@ -1,7 +1,11 @@
 
 #pragma once
 
-#include "PCH.h"
+#include <d3d12.h>
+#include <d3dx12.h>
+#include <stdexcept>
+
+
 
 namespace DX
 {
@@ -100,7 +104,9 @@ namespace dxh
 
 float RandomFloat(float min, float max);
 
+CD3DX12_VIEWPORT MakeViewport(POINT min, POINT max);
+
+D3D12_RECT MakeScissorRect(POINT min, POINT max);
+
+
 }  // namespace dxh
-
-
-

@@ -1,5 +1,6 @@
 #include "Shader.h"
 
+#include "PCH.h"
 
 namespace
 {
@@ -33,6 +34,9 @@ Shader::Shader(
     ::OutputDebugStringA(static_cast<LPCSTR>(error->GetBufferPointer()));
 
     std::string errorMsg = "shader compilation error: ";
+    errorMsg += ToAsciiString(
+      std::wstring(static_cast<const wchar_t*>(error->GetBufferPointer()), error->GetBufferSize())
+    );
     throw std::runtime_error{errorMsg};
   }
 }
@@ -42,15 +46,5 @@ D3D12_SHADER_BYTECODE Shader::ByteCode() const
   return CD3DX12_SHADER_BYTECODE{blob_.Get()};
 }
 
-D3D12_SHADER_BYTECODE ShaderByteCode(
-  const std::wstring& path,
-  const char* entryPoint,
-  UINT compileFlags,
-  const char* target
-)
-{
-  auto shader = std::make_unique<Shader>(path, entryPoint, compileFlags, target);
-  return shader->ByteCode();
-}
 
 }  // namespace dxh

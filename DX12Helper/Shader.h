@@ -42,14 +42,6 @@ public:
   }
 };
 
-D3D12_SHADER_BYTECODE ShaderByteCode(
-  const std::wstring& path,
-  const char* entryPoint,
-  UINT compileFlags,
-  const char* target
-);
-
-
 }  // namespace dxh
 
 
