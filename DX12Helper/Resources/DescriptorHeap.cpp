@@ -12,7 +12,7 @@ DescriptorHeap* DescriptorHeapPool::RequestHeap()
   }
 
   if (!retiredHeaps.empty()) {
-    const RetiredHeap& h = retiredHeaps.front();
+    RetiredHeap& h = retiredHeaps.front();
     // TODO:
     uint64_t completedFence;
     ;
