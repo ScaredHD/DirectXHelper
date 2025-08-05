@@ -27,5 +27,11 @@ Diagnostics:
       ]
   UnusedIncludes: None
 
+InlayHints:
+  Enabled: true
+  ParameterNames: true
+  DeducedTypes: true
+  Designators: true
+
 Hover:
   ShowAKA: Yes

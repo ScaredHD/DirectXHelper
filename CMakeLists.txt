@@ -8,8 +8,15 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 add_subdirectory(DirectX-Header)
 
 # DX12Helper
-file(GLOB_RECURSE helperSource DX12Helper/*.cpp)
+file(GLOB_RECURSE helperSource CONFIGURE_DEPENDS DX12Helper/*.cpp)
 add_library(DX12Helper ${helperSource})
+
+target_include_directories(
+    DX12Helper
+    PUBLIC DX12Helper
+           DX12Helper/Utils
+           DX12Helper/Resources
+)
 
 target_link_libraries(
     DX12Helper 
@@ -22,11 +29,4 @@ target_link_libraries(
 target_precompile_headers(
     DX12Helper
     PRIVATE DX12Helper/PCH.h
-)
-
-target_include_directories(
-    DX12Helper
-    PUBLIC DX12Helper
-           DX12Helper/Utils
-           DX12Helper/Resources
 )
