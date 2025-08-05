@@ -1,65 +1,100 @@
 
 #pragma once
 
-#include <functional>
 
 #include "PCH.h"
-#include "Resources.h"
 
-namespace dxh {
+namespace dxh
+{
 
-template <size_t bufferCount> class SwapChain {
+template<size_t bufferCount>
+class SwapChain
+{
 public:
-  IDXGISwapChain4 *Get() const { return swapChain.Get(); }
+  SwapChain(
+    ID3D12Device* device,
+    IDXGIFactory4* factory,
+    ID3D12CommandQueue* cmdQueue,
+    HWND window,
+    int viewportWidth,
+    int viewportHeight
+  )
+  {
+    {
+      DXGI_SWAP_CHAIN_DESC1 swapChainDesc{};
+      swapChainDesc.BufferCount = bufferCount;
+      swapChainDesc.Width = viewportWidth;
+      swapChainDesc.Height = viewportHeight;
+      swapChainDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+      swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+      swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+      swapChainDesc.SampleDesc.Count = 1;
 
+      Microsoft::WRL::ComPtr<IDXGISwapChain1> swapChain;
+      ThrowIfFailed(factory->CreateSwapChainForHwnd(
+        cmdQueue, window, &swapChainDesc, nullptr, nullptr, swapChain.GetAddressOf()
+      ));
+      ThrowIfFailed(factory->MakeWindowAssociation(window, DXGI_MWA_NO_ALT_ENTER));
+
+      ThrowIfFailed(swapChain.As(&this->swapChain));
+    }
+
+    {
+      auto desc = CD3DX12_RESOURCE_DESC::Tex2D(
+        DXGI_FORMAT_R8G8B8A8_UNORM, viewportWidth, viewportHeight, 1
+      );
+      desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+      auto heapProps = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
+      FLOAT clearColor[] = {0.0f, 0.0f, 0.0f, 1.0f};
+      auto clearValue = CD3DX12_CLEAR_VALUE(DXGI_FORMAT_R8G8B8A8_UNORM, clearColor);
+
+      for (int i = 0; i < bufferCount; ++i) {
+        ThrowIfFailed(swapChain->GetBuffer(i, IID_PPV_ARGS(&buffers[i])));
+        device->CreateCommittedResource(
+          &heapProps, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_PRESENT, &clearValue,
+          IID_PPV_ARGS(&buffers[i])
+        );
+      }
+    }
+  }
+
+  IDXGISwapChain4* Get() const { return swapChain.Get(); }
+
+  ID3D12Resource* Buffer(int i) const { return buffers[i].Get(); }
 
 
 private:
   Microsoft::WRL::ComPtr<IDXGISwapChain4> swapChain;
+  std::array<Microsoft::WRL::ComPtr<ID3D12Resource>, bufferCount> buffers;
 };
 
-class SwapChainLegacy {
+template<size_t bufferCount>
+class SwapChainRender
+{
 public:
-  /// @param bufferRTVAlloc For i-th buffer in swap chain, return handle to
-  /// descriptor heap where this RTV should be created
-  explicit SwapChainLegacy(
-      ID3D12Device *device, IDXGIFactory4 *factory,
-      ID3D12CommandQueue *cmdQueue, HWND window, unsigned int bufferCount,
-      int viewportWidth, int viewportHeight,
-      std::function<D3D12_CPU_DESCRIPTOR_HANDLE(int)> bufferRTVAlloc);
-
-  IDXGISwapChain *Get() const { return swapChain_.Get(); }
-
-  void Swap() { currentBufferIndex = (currentBufferIndex + 1) % bufferCount_; }
-
-  RawResource *Buffer(int i) const { return buffers_[i].get(); }
-
-  RawResource *CurrentBuffer() const {
-    return buffers_[currentBufferIndex].get();
+  SwapChainRender(
+    SwapChain<bufferCount>& swapChain,
+    std::array<D3D12_CPU_DESCRIPTOR_HANDLE, bufferCount> bufferRTVs
+  )
+      : swapChain{swapChain},
+        bufferRTVs{bufferRTVs}
+  {
   }
 
-  D3D12_CPU_DESCRIPTOR_HANDLE CPURtv(int i) { return swapChainRTVs_[i]; }
+  D3D12_CPU_DESCRIPTOR_HANDLE CurrentRTV() { return bufferRTVs[currentIndex]; }
 
-  D3D12_CPU_DESCRIPTOR_HANDLE CurrentRTV() const {
-    return swapChainRTVs_[currentBufferIndex];
-  }
+  D3D12_CPU_DESCRIPTOR_HANDLE RTV(int i) { return bufferRTVs[i]; }
 
-  unsigned int BufferCount() const { return bufferCount_; }
+  void Swap() { currentIndex = (currentIndex + 1) % bufferCount; }
 
-  unsigned int CurrentBufferIndex() const { return currentBufferIndex; }
-
-  void Present() const;
+  void Present() { ThrowIfFailed(swapChain.Get()->Present(1, 0)); }
 
 private:
-  Microsoft::WRL::ComPtr<IDXGISwapChain1> swapChain_;
+  SwapChain<bufferCount>& swapChain;
+  std::array<D3D12_CPU_DESCRIPTOR_HANDLE, bufferCount> bufferRTVs;
 
-  std::vector<std::unique_ptr<RawResource>> buffers_;
-
-  std::vector<D3D12_CPU_DESCRIPTOR_HANDLE> swapChainRTVs_;
-
-  int currentBufferIndex = 0;
-
-  unsigned int bufferCount_ = 0;
+  size_t currentIndex = 0;
 };
 
-} // namespace dxh
+
+}  // namespace dxh

@@ -11,12 +11,11 @@ class Device
 public:
   explicit Device(IDXGIFactory4* factory);
 
-  ID3D12Device* Get() const { return device_.Get(); }
+  ID3D12Device* Get() const { return device.Get(); }
+  Microsoft::WRL::ComPtr<ID3D12Device> GetComPtr() const { return device; }
 
 private:
-  Microsoft::WRL::ComPtr<ID3D12Device> device_;
+  Microsoft::WRL::ComPtr<ID3D12Device> device;
 };
 
 }  // namespace dxh
-
-

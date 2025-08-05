@@ -1,23 +1,38 @@
 #pragma once
 
 
+#include <queue>
+#include <utility>
+
 #include "PCH.h"
+
 
 namespace dxh
 {
 
 
-template<size_t count>
 class DescriptorHeap
 {
 public:
-  DescriptorHeap(ID3D12Device* device, D3D12_DESCRIPTOR_HEAP_DESC desc) : type{desc.Type}
+  explicit DescriptorHeap(
+    ID3D12Device* device,
+    D3D12_DESCRIPTOR_HEAP_TYPE type,
+    UINT count,
+    D3D12_DESCRIPTOR_HEAP_FLAGS flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE
+  )
+      : DescriptorHeap{device, D3D12_DESCRIPTOR_HEAP_DESC{type, count, flags, 0}}
   {
-    incrementSize = device->GetDescriptorHandleIncrementSize(type);
+  }
+
+  explicit DescriptorHeap(ID3D12Device* device, const D3D12_DESCRIPTOR_HEAP_DESC& desc)
+      : incrementSize{device->GetDescriptorHandleIncrementSize(desc.Type)},
+        desc{desc}
+  {
     DX::ThrowIfFailed(device->CreateDescriptorHeap(&desc, IID_PPV_ARGS(heap.GetAddressOf())));
   }
 
-  size_t Count() const { return count; }
+  D3D12_DESCRIPTOR_HEAP_TYPE Type() const { return desc.Type; }
+  UINT Count() const { return desc.NumDescriptors; }
 
   CD3DX12_CPU_DESCRIPTOR_HANDLE CPUHandle(INT index)
   {
@@ -34,12 +49,48 @@ public:
   ID3D12DescriptorHeap* Heap() const { return heap.Get(); }
 
 private:
-  D3D12_DESCRIPTOR_HEAP_TYPE type;
   UINT incrementSize = 0;
+  D3D12_DESCRIPTOR_HEAP_DESC desc = {};
   Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> heap;
 };
 
+class DescriptorHeapPool
+{
+public:
+  DescriptorHeapPool(
+    const Microsoft::WRL::ComPtr<ID3D12Device>& device,
+    D3D12_DESCRIPTOR_HEAP_TYPE type,
+    UINT descriptorsPerHeap = 1024
+  )
+      : device{device},
+        type{type},
+        descriptorsPerHeap{descriptorsPerHeap}
+  {
+  }
 
+  DescriptorHeap* RequestHeap();
+
+  DescriptorHeap* CurrentHeap();
+
+
+private:
+  void RetireHeap(uint64_t fenceValue);
+
+  Microsoft::WRL::ComPtr<ID3D12Device> device;
+  D3D12_DESCRIPTOR_HEAP_TYPE type;
+  UINT descriptorsPerHeap = 1024;
+
+  std::unique_ptr<DescriptorHeap> currentHeap;
+  UINT nextAvailableIndex = 0;
+
+  struct RetiredHeap {
+    std::unique_ptr<DescriptorHeap> heap;
+    uint64_t fenceValue;
+  };
+
+  std::queue<RetiredHeap> retiredHeaps;
+  std::queue<std::unique_ptr<DescriptorHeap>> availableHeaps;
+};
 
 
 }  // namespace dxh

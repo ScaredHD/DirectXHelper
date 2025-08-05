@@ -1,7 +1,9 @@
 
 #pragma once
 
-#include "PCH.h"
+#include <stdexcept>
+#include <d3d12.h>
+
 
 namespace DX
 {

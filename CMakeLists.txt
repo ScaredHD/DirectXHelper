@@ -27,4 +27,6 @@ target_precompile_headers(
 target_include_directories(
     DX12Helper
     PUBLIC DX12Helper
+           DX12Helper/Utils
+           DX12Helper/Resources
 )
