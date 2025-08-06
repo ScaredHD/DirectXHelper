@@ -10,5 +10,10 @@ dxh::CommandQueue::CommandQueue(ID3D12Device* device)
   desc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
   desc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
   ThrowIfFailed(
-      device->CreateCommandQueue(&desc, IID_PPV_ARGS(cmdQueue_.ReleaseAndGetAddressOf())));
+      device->CreateCommandQueue(&desc, IID_PPV_ARGS(cmdQueue.ReleaseAndGetAddressOf())));
+}
+
+void dxh::CommandQueue::Signal(ID3D12Fence* fence, uint64_t value)
+{
+  DX::ThrowIfFailed(cmdQueue->Signal(fence, value));
 }

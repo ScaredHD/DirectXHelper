@@ -17,10 +17,6 @@ void ResetCommandAllocator(const CommandAllocator& cmdAlloc);
 
 void ExecuteCommandList(ID3D12CommandList* cmdList, ID3D12CommandQueue* cmdQueue);
 
-void ExecuteQueuedCommands(
-  GraphicsCommandList& cmdList,
-  const CommandQueue& cmdQueue
-);
-
+void ExecuteCommandList(const GraphicsCommandList& cmdList, const CommandQueue& cmdQueue);
 
 }  // namespace dxh
