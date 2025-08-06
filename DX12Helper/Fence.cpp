@@ -14,10 +14,15 @@ Fence::Fence(ID3D12Device* device)
   );
 }
 
+void Fence::SignalToCommandQueue(ID3D12CommandQueue* cmdQueue, uint64_t value)
+{
+  ThrowIfFailed(cmdQueue->Signal(fence.Get(), value));
+}
+
 void Fence::FlushCommandQueue(ID3D12CommandQueue* cmdQueue)
 {
   auto fenceValue = ++nextFenceValue;
-  ThrowIfFailed(cmdQueue->Signal(fence.Get(), fenceValue));
+  SignalToCommandQueue(cmdQueue, fenceValue);
 
   if (fence->GetCompletedValue() < fenceValue) {
     HANDLE event = CreateEvent(nullptr, FALSE, FALSE, nullptr);
