@@ -72,7 +72,7 @@ public:
 
   Duration DurationElapsed(std::string name)
   {
-    if (!HasTimer(name)) {
+    if (!Has(name)) {
       return {};
     }
     auto track = timers_[name];
@@ -83,32 +83,32 @@ public:
     return timeElapsed;
   }
 
-  void StartTimer(std::string name)
+  void Start(std::string name)
   {
-    if (!HasTimer(name)) {
+    if (!Has(name)) {
       timers_.insert({name, TimeTrack{}});
     }
     timers_[name].Start();
   }
 
-  void PauseTimer(std::string name)
+  void Pause(std::string name)
   {
-    if (!HasTimer(name)) {
+    if (!Has(name)) {
       return;
     }
     timers_[name].Pause();
   }
 
-  void ResetTimer(std::string name)
+  void Reset(std::string name)
   {
-    if (HasTimer(name)) {
+    if (Has(name)) {
       timers_[name] = {};
     }
   }
 
-  void RemoveTimer(std::string name) { timers_.erase(timers_.find(name)); }
+  void Remove(std::string name) { timers_.erase(timers_.find(name)); }
 
-  bool HasTimer(std::string name) { return static_cast<bool>(timers_.count(name)); }
+  bool Has(std::string name) { return static_cast<bool>(timers_.count(name)); }
 
 private:
   std::unordered_map<std::string, TimeTrack<Duration, Clock>> timers_{};

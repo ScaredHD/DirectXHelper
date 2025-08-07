@@ -2,7 +2,11 @@
 #pragma once
 
 
+#include <array>
+
 #include "PCH.h"
+
+using DX::ThrowIfFailed;
 
 namespace dxh
 {
@@ -12,7 +16,6 @@ class SwapChain
 {
 public:
   SwapChain(
-    ID3D12Device* device,
     IDXGIFactory4* factory,
     ID3D12CommandQueue* cmdQueue,
     HWND window,
@@ -39,24 +42,12 @@ public:
       ThrowIfFailed(swapChain.As(&this->swapChain));
     }
 
-    {
-      auto desc = CD3DX12_RESOURCE_DESC::Tex2D(
-        DXGI_FORMAT_R8G8B8A8_UNORM, viewportWidth, viewportHeight, 1
-      );
-      desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
-      auto heapProps = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
-      FLOAT clearColor[] = {0.0f, 0.0f, 0.0f, 1.0f};
-      auto clearValue = CD3DX12_CLEAR_VALUE(DXGI_FORMAT_R8G8B8A8_UNORM, clearColor);
-
-      for (int i = 0; i < bufferCount; ++i) {
-        ThrowIfFailed(swapChain->GetBuffer(i, IID_PPV_ARGS(&buffers[i])));
-        device->CreateCommittedResource(
-          &heapProps, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_PRESENT, &clearValue,
-          IID_PPV_ARGS(&buffers[i])
-        );
-      }
+    for (int i = 0; i < bufferCount; ++i) {
+      ThrowIfFailed(swapChain->GetBuffer(i, IID_PPV_ARGS(&buffers[i])));
     }
   }
+
+  UINT CurrentBackBufferIndex() const { return swapChain->GetCurrentBackBufferIndex(); }
 
   IDXGISwapChain4* Get() const { return swapChain.Get(); }
 
@@ -73,27 +64,38 @@ class SwapChainRender
 {
 public:
   SwapChainRender(
+    ID3D12Device* device,
     SwapChain<bufferCount>& swapChain,
     std::array<D3D12_CPU_DESCRIPTOR_HANDLE, bufferCount> bufferRTVs
   )
       : swapChain{swapChain},
         bufferRTVs{bufferRTVs}
   {
+    for (size_t i = 0; i < bufferCount; ++i) {
+      D3D12_RENDER_TARGET_VIEW_DESC desc{};
+      desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+      desc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
+      desc.Texture2D.MipSlice = 0;
+      desc.Texture2D.PlaneSlice = 0;
+      ID3D12Resource* buffer = swapChain.Buffer(i);
+      if (buffer) {
+        device->CreateRenderTargetView(buffer, &desc, bufferRTVs[i]);
+      }
+    }
   }
 
-  D3D12_CPU_DESCRIPTOR_HANDLE CurrentRTV() { return bufferRTVs[currentIndex]; }
+  D3D12_CPU_DESCRIPTOR_HANDLE CurrentRTV()
+  {
+    return bufferRTVs[swapChain.CurrentBackBufferIndex()];
+  }
 
-  D3D12_CPU_DESCRIPTOR_HANDLE RTV(int i) { return bufferRTVs[i]; }
-
-  void Swap() { currentIndex = (currentIndex + 1) % bufferCount; }
+  ID3D12Resource* CurrentBuffer() { return swapChain.Buffer(swapChain.CurrentBackBufferIndex()); }
 
   void Present() { ThrowIfFailed(swapChain.Get()->Present(1, 0)); }
 
 private:
   SwapChain<bufferCount>& swapChain;
   std::array<D3D12_CPU_DESCRIPTOR_HANDLE, bufferCount> bufferRTVs;
-
-  size_t currentIndex = 0;
 };
 
 

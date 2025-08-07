@@ -48,15 +48,32 @@ public:
         clearValue{clearValue}
   {
     auto heapProp = CD3DX12_HEAP_PROPERTIES(heapType, 0, 0);
-    device->CreateCommittedResource(
+    DX::ThrowIfFailed(device->CreateCommittedResource(
       &heapProp, heapFlags, &desc, state, clearValue, IID_PPV_ARGS(resource.GetAddressOf())
-    );
+    ));
   };
+
+  explicit TrackedResource(const Microsoft::WRL::ComPtr<ID3D12Resource>& resource)
+  {
+    this->resource = resource;
+    desc = resource->GetDesc();
+    D3D12_HEAP_PROPERTIES heapProps;
+    resource->GetHeapProperties(&heapProps, &heapFlags);
+    heapType = heapProps.Type;
+  }
 
   virtual ID3D12Resource* Resource() const { return resource.Get(); }
 
+  bool IsValid() const { return resource != nullptr; }
+
   virtual std::string Name() const { return name; }
-  void Rename(const std::string& newName) { name = newName; }
+  void Rename(const std::string& newName)
+  {
+    name = newName;
+    if (resource) {
+      resource->SetName(std::wstring(name.begin(), name.end()).c_str());
+    }
+  }
 
   D3D12_GPU_VIRTUAL_ADDRESS GPUVirtualAddress() const { return resource->GetGPUVirtualAddress(); }
 

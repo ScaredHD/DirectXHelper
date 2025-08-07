@@ -11,22 +11,20 @@ void ResetCommandList(ID3D12GraphicsCommandList* cmdList, ID3D12CommandAllocator
   ThrowIfFailed(cmdList->Reset(cmdAlloc, nullptr));
 }
 
-void ResetCommandList(const GraphicsCommandList& cmdList, const CommandAllocator& cmdAlloc)
+void ResetCommandList(GraphicsCommandList& cmdList, CommandAllocator& cmdAlloc)
 {
-  ResetCommandList(cmdList.Get(), cmdAlloc.Get());
+  cmdList.Reset(cmdAlloc);
 }
-
 
 void ResetCommandAllocator(ID3D12CommandAllocator* cmdAlloc)
 {
   ThrowIfFailed(cmdAlloc->Reset());
 }
 
-void ResetCommandAllocator(const CommandAllocator& cmdAlloc)
+void ResetCommandAllocator(CommandAllocator& cmdAlloc)
 {
-  ResetCommandAllocator(cmdAlloc.Get());
+  cmdAlloc.Reset();
 }
-
 
 void ExecuteCommandList(ID3D12CommandList* cmdList, ID3D12CommandQueue* cmdQueue)
 {
@@ -34,7 +32,7 @@ void ExecuteCommandList(ID3D12CommandList* cmdList, ID3D12CommandQueue* cmdQueue
   cmdQueue->ExecuteCommandLists(_countof(cmdLists), cmdLists);
 }
 
-void ExecuteCommandList(const GraphicsCommandList& cmdList, const CommandQueue& cmdQueue)
+void ExecuteCommandList(GraphicsCommandList& cmdList, CommandQueue& cmdQueue)
 {
   ExecuteCommandList(cmdList.Get(), cmdQueue.Get());
 }

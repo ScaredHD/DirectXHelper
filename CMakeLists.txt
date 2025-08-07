@@ -30,3 +30,10 @@ target_precompile_headers(
     DX12Helper
     PRIVATE DX12Helper/PCH.h
 )
+
+
+add_executable(Demo WIN32
+    Test/SolidColorWindow.cpp
+)
+
+target_link_libraries(Demo DX12Helper)

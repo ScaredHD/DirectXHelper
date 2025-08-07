@@ -95,5 +95,4 @@ int ComputePaddedSize(int size, int alignment)
   return size + padding;
 }
 
-
 }  // namespace dxh
