@@ -37,31 +37,6 @@ struct TimeTrack {
   bool isRunning = true;
 };
 
-/**
- * @class Timer
- * @brief Manages multiple named timers for measuring elapsed time.
- *
- * This class provides functionality to start, pause, reset, and remove timers identified by string
- * names. Each timer tracks its elapsed duration and can be queried for the time elapsed or
- * duration.
- *
- * @tparam Duration The duration type used for time measurement (e.g., std::chrono::milliseconds).
- * @tparam Clock The clock type used for time measurement (e.g., std::chrono::steady_clock).
- *
- * Public Methods:
- * - typename Duration::rep TimeElapsed(std::string name): Returns the elapsed time for the
- * specified timer.
- * - Duration DurationElapsed(std::string name): Returns the duration elapsed for the specified
- * timer.
- * - void StartTimer(std::string name): Starts or resumes the specified timer.
- * - void PauseTimer(std::string name): Pauses the specified timer.
- * - void ResetTimer(std::string name): Resets the specified timer to zero.
- * - void RemoveTimer(std::string name): Removes the specified timer from the manager.
- * - bool HasTimer(std::string name): Checks if a timer with the given name exists.
- *
- * Private Members:
- * - std::unordered_map<std::string, TimeTrack<Duration, Clock>> timers_: Stores the timers by name.
- */
 template<
   typename Duration = std::chrono::milliseconds,
   typename Clock = std::chrono::high_resolution_clock>
@@ -75,7 +50,7 @@ public:
     if (!Has(name)) {
       return {};
     }
-    auto track = timers_[name];
+    auto track = timers[name];
     auto timeElapsed = track.timeElapsedBeforeLastPause;
     if (track.isRunning) {
       timeElapsed += std::chrono::duration_cast<Duration>(Clock::now() - track.lastStart);
@@ -86,9 +61,9 @@ public:
   void Start(std::string name)
   {
     if (!Has(name)) {
-      timers_.insert({name, TimeTrack{}});
+      timers.insert({name, TimeTrack{}});
     }
-    timers_[name].Start();
+    timers[name].Start();
   }
 
   void Pause(std::string name)
@@ -96,22 +71,22 @@ public:
     if (!Has(name)) {
       return;
     }
-    timers_[name].Pause();
+    timers[name].Pause();
   }
 
   void Reset(std::string name)
   {
     if (Has(name)) {
-      timers_[name] = {};
+      timers[name] = {};
     }
   }
 
-  void Remove(std::string name) { timers_.erase(timers_.find(name)); }
+  void Remove(std::string name) { timers.erase(timers.find(name)); }
 
-  bool Has(std::string name) { return static_cast<bool>(timers_.count(name)); }
+  bool Has(std::string name) { return static_cast<bool>(timers.count(name)); }
 
 private:
-  std::unordered_map<std::string, TimeTrack<Duration, Clock>> timers_{};
+  std::unordered_map<std::string, TimeTrack<Duration, Clock>> timers{};
 };
 
 }  // namespace dxh

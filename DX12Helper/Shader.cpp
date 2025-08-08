@@ -42,15 +42,6 @@ D3D12_SHADER_BYTECODE Shader::ByteCode() const
   return CD3DX12_SHADER_BYTECODE{blob_.Get()};
 }
 
-D3D12_SHADER_BYTECODE ShaderByteCode(
-  const std::wstring& path,
-  const char* entryPoint,
-  UINT compileFlags,
-  const char* target
-)
-{
-  auto shader = std::make_unique<Shader>(path, entryPoint, compileFlags, target);
-  return shader->ByteCode();
-}
+
 
 }  // namespace dxh

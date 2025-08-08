@@ -32,8 +32,14 @@ target_precompile_headers(
 )
 
 
-add_executable(Demo WIN32
-    Test/SolidColorWindow.cpp
+add_executable(DemoSolidColor WIN32
+    Test/0_SolidColor/SolidColorWindow.cpp
 )
 
-target_link_libraries(Demo DX12Helper)
+target_link_libraries(DemoSolidColor DX12Helper)
+
+add_executable(DemoTriangle WIN32
+    Test/1_Triangle/Triangle.cpp
+)
+
+target_link_libraries(DemoTriangle DX12Helper)
