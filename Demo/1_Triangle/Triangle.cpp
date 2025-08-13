@@ -14,9 +14,14 @@
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
-struct Vertex {
+struct VertexF {
   DirectX::XMFLOAT3 position;
   DirectX::XMFLOAT4 color;
+};
+
+struct VertexU {
+  DirectX::XMFLOAT3 position;
+  uint8_t color[4];  // Use uint8_t for color components
 };
 
 struct ConstantBuffer {
@@ -78,22 +83,33 @@ int WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow)
   dxh::GraphicsCommandList cmdList{device.Get(), cmdAlloc.Get()};
 
 
-  Vertex v0 = {{0.0f, 0.5f, 0.0f}, {1.0f, 0.0f, 0.0f, 1.0f}};
-  Vertex v1 = {{-0.5f, -0.5f, 0.0f}, {0.0f, 1.0f, 0.0f, 1.0f}};
-  Vertex v2 = {{0.5f, -0.5f, 0.0f}, {0.0f, 0.0f, 1.0f, 1.0f}};
-  std::vector<Vertex> vertices = {v0, v1, v2};
+#define USE_UNORM
+
+#if defined(USE_UNORM)
+  using Vertex = VertexU;
+  VertexU v0u = {{0.0f, 0.5f, 0.0f}, {255, 0, 0, 255}};
+  VertexU v1u = {{-0.5f, -0.5f, 0.0f}, {0, 255, 0, 255}};
+  VertexU v2u = {{0.5f, -0.5f, 0.0f}, {0, 0, 255, 255}};
+  std::vector<Vertex> vertices = {v0u, v1u, v2u};
+#else
+  using Vertex = VertexF;
+  VertexF v0 = {{0.0f, 0.5f, 0.0f}, {1.0f, 0.0f, 0.0f, 1.0f}};
+  VertexF v1 = {{-0.5f, -0.5f, 0.0f}, {0.0f, 1.0f, 0.0f, 1.0f}};
+  VertexF v2 = {{0.5f, -0.5f, 0.0f}, {0.0f, 0.0f, 1.0f, 1.0f}};
+  std::vector<VertexF> vertices = {v0, v1, v2};
+#endif
 
   size_t vertexBufferSize = vertices.size() * sizeof(Vertex);
   dxh::DefaultHeapBuffer vertexBuffer{device.Get(), vertexBufferSize};
   vertexBuffer.PrepareLoad(0, vertices.data(), 0, vertexBufferSize);
-  vertexBuffer.RecordCopyCommands(cmdList);
+  vertexBuffer.QueueCopyCommands(cmdList);
 
   std::vector<uint16_t> indices = {0, 1, 2};
 
   size_t indexBufferSize = indices.size() * sizeof(uint16_t);
   dxh::DefaultHeapBuffer indexBuffer{device.Get(), indexBufferSize};
   indexBuffer.PrepareLoad(0, indices.data(), 0, indexBufferSize);
-  indexBuffer.RecordCopyCommands(cmdList);
+  indexBuffer.QueueCopyCommands(cmdList);
 
   cmdList.Close();
   cmdList.Execute(cmdQueue.Get());
@@ -105,8 +121,12 @@ int WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow)
   D3D12_INPUT_ELEMENT_DESC inputLayout[] = {
     {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
      0},
+#if defined(USE_UNORM)
+    {"COLOR", 0, DXGI_FORMAT_R8G8B8A8_UNORM, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0}
+#else
     {"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
      0}
+#endif
   };
 
 
@@ -132,12 +152,8 @@ int WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow)
     );
   }
 
-  dxh::VertexShader vertexShader{
-    L"shader.hlsl", "MainVS", 0
-  };
-  dxh::PixelShader pixelShader{
-    L"shader.hlsl", "MainPS", 0
-  };
+  dxh::VertexShader vertexShader{L"shader.hlsl", "MainVS", 0};
+  dxh::PixelShader pixelShader{L"shader.hlsl", "MainPS", 0};
 
   Microsoft::WRL::ComPtr<ID3D12PipelineState> pso;
   {

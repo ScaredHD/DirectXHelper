@@ -15,6 +15,7 @@ VSOut MainVS(float4 position : POSITION, float4 color : COLOR)
     VSOut output;
     output.position = position;
     output.color = float4(sin(color.xyz + time * float3(1.f, 2.f, 3.f)), 1.f);
+    // output.color = color;
     return output;
 }
 
