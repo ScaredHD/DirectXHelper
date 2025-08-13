@@ -33,7 +33,7 @@ void dxh::DefaultHeapBuffer::PrepareLoad(
   copyCommands.emplace_back(transitionBack);
 }
 
-void dxh::DefaultHeapBuffer::RecordCopyCommands(GraphicsCommandList& cmdList) {
+void dxh::DefaultHeapBuffer::QueueCopyCommands(GraphicsCommandList& cmdList) {
   for (const auto& command : copyCommands) {
     command(cmdList);
   }

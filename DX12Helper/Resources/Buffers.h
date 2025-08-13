@@ -129,7 +129,7 @@ public:
 
   void PrepareLoad(size_t dstOffset, const void* srcBegin, size_t srcOffset, size_t byteSize);
 
-  void RecordCopyCommands(GraphicsCommandList& cmdList);
+  void QueueCopyCommands(GraphicsCommandList& cmdList);
 
 private:
   std::unique_ptr<UploadHeapBuffer> uploader;
