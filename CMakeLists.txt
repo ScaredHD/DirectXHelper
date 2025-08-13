@@ -5,6 +5,12 @@ project(DirectXHelper CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
+    set(isTopLevelProject TRUE)
+else()
+    set(isTopLevelProject FALSE)
+endif()
+
 add_subdirectory(DirectX-Header)
 
 # DX12Helper
@@ -32,7 +38,8 @@ target_precompile_headers(
 )
 
 
-
-include(Demo/Utils/DemoUtils.cmake)
-add_subdirectory(Demo/0_SolidColor)
-add_subdirectory(Demo/1_Triangle)
+if (isTopLevelProject)
+    include(Demo/Utils/DemoUtils.cmake)
+    add_subdirectory(Demo/0_SolidColor)
+    add_subdirectory(Demo/1_Triangle)
+endif()
