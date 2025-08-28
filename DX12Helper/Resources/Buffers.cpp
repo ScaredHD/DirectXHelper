@@ -5,7 +5,7 @@
 namespace dxh
 {
 
-void dxh::DefaultHeapBuffer::PrepareLoad(
+void dxh::DefaultHeapBuffer::StageUpload(
   size_t dstOffset,
   const void* srcBegin,
   size_t srcOffset,
@@ -33,7 +33,7 @@ void dxh::DefaultHeapBuffer::PrepareLoad(
   copyCommands.emplace_back(transitionBack);
 }
 
-void dxh::DefaultHeapBuffer::QueueCopyCommands(GraphicsCommandList& cmdList) {
+void dxh::DefaultHeapBuffer::QueueUpload(GraphicsCommandList& cmdList) {
   for (const auto& command : copyCommands) {
     command(cmdList);
   }

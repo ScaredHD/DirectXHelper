@@ -22,6 +22,7 @@ target_include_directories(
     PUBLIC DX12Helper
            DX12Helper/Utils
            DX12Helper/Resources
+           DX12Helper/Geometry
 )
 
 target_link_libraries(
