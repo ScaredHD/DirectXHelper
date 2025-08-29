@@ -1,6 +1,8 @@
 #pragma once
 
 #include "PCH.h"
+#include "RootSignature.h"
+#include "SwapChain.h"
 
 
 namespace dxh
@@ -25,7 +27,6 @@ public:
 
   void Execute(class CommandQueue& cmdQueue) const;
 
-
   void Transition(
     ID3D12Resource* resource,
     D3D12_RESOURCE_STATES stateBefore,
@@ -37,6 +38,41 @@ public:
   }
 
   void Transition(TrackedResource& resource, D3D12_RESOURCE_STATES targetState);
+
+  void SetRootSignature(const RootSignature& rootSignature)
+  {
+    cmdList->SetGraphicsRootSignature(rootSignature.GetRootSignature());
+  }
+
+  void SetRootCBV(UINT rootParameterIndex, ID3D12Resource* resource)
+  {
+    cmdList->SetGraphicsRootConstantBufferView(
+      rootParameterIndex, resource->GetGPUVirtualAddress()
+    );
+  }
+
+  void SetViewport(const SwapChain<2>& swapChain) const
+  {
+    auto viewport = dxh::MakeViewport(swapChain);
+    cmdList->RSSetViewports(1, &viewport);
+  }
+
+  void SetScissorRect(const SwapChain<2>& swapChain) const
+  {
+    auto scissorRect = dxh::MakeScissorRect(swapChain);
+    cmdList->RSSetScissorRects(1, &scissorRect);
+  }
+
+  void SetRenderTargets(UINT count, D3D12_CPU_DESCRIPTOR_HANDLE renderTargets[])
+  {
+    cmdList->OMSetRenderTargets(count, renderTargets, FALSE, nullptr);
+  }
+
+  void ClearRTV(D3D12_CPU_DESCRIPTOR_HANDLE rtv, std::array<float, 4> color) const
+  {
+    cmdList->ClearRenderTargetView(rtv, color.data(), 0, nullptr);
+  }
+
 
 private:
   Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList> cmdList;

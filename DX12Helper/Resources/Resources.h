@@ -55,13 +55,17 @@ public:
     ));
   };
 
-  explicit TrackedResource(const Microsoft::WRL::ComPtr<ID3D12Resource>& resource)
+  explicit TrackedResource(
+    const Microsoft::WRL::ComPtr<ID3D12Resource>& resource,
+    const std::string& name = "UnnamedResource"
+  )
   {
     this->resource = resource;
     desc = resource->GetDesc();
     D3D12_HEAP_PROPERTIES heapProps;
     resource->GetHeapProperties(&heapProps, &heapFlags);
     heapType = heapProps.Type;
+    Rename(name);
   }
 
   virtual ID3D12Resource* Resource() const { return resource.Get(); }
@@ -110,7 +114,7 @@ private:
   D3D12_HEAP_FLAGS heapFlags;
   const D3D12_CLEAR_VALUE* clearValue;
   StateTracker tracker;
-  std::string name = "UnnamedTrackedRes";
+  std::string name = "UnnamedResource";
 };
 
 

@@ -80,7 +80,7 @@ protected:
   void* bufferBegin = nullptr;
 };
 
-template<typename ElemType, size_t alignment = sizeof(ElemType)>
+template<typename ElemType, size_t alignment = 256>
 class UploadHeapArray : public UploadHeapBuffer
 {
 public:

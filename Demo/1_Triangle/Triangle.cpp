@@ -6,7 +6,9 @@
 #include "Device.h"
 #include "Fence.h"
 #include "PCH.h"
+#include "RenderContext.h"
 #include "Resources.h"
+#include "RootSignature.h"
 #include "Shader.h"
 #include "SwapChain.h"
 #include "Timer.h"
@@ -69,17 +71,12 @@ int WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow)
   }
 #endif
 
-  dxh::Device device{factory.Get()};
+  dxh::RenderContext rc{factory.Get(), hwnd, 800, 600};
+  auto& device = *rc.device;
+  auto& cmdQueue = *rc.cmdQueue;
+  auto& swapChain = *rc.swapChain;
+
   dxh::CommandAllocator cmdAlloc{device.Get()};
-  dxh::CommandQueue cmdQueue{device.Get()};
-  dxh::SwapChain<2> swapChain{factory.Get(), cmdQueue.Get(), hwnd, 800, 600};
-
-  dxh::DescriptorHeap rtvHeap{device.Get(), D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 2};
-  dxh::SwapChainRender<2> swapChainRender{
-    device.Get(), swapChain, {rtvHeap.CPUHandle(0), rtvHeap.CPUHandle(1)}
-  };
-
-  dxh::Fence fence{device.Get()};
   dxh::GraphicsCommandList cmdList{device.Get(), cmdAlloc.Get()};
 
 
@@ -113,10 +110,9 @@ int WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow)
 
   cmdList.Close();
   cmdList.Execute(cmdQueue.Get());
-  fence.FlushCommandQueue(cmdQueue.Get());
 
+  rc.FlushCommandQueue();
 
-  dxh::UploadHeapArray<ConstantBuffer> constantBuffer{device.Get(), 1};
 
   D3D12_INPUT_ELEMENT_DESC inputLayout[] = {
     {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
@@ -130,27 +126,25 @@ int WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow)
   };
 
 
-  Microsoft::WRL::ComPtr<ID3D12RootSignature> rootSignature;
-  {
-    CD3DX12_ROOT_PARAMETER rootParameters[1];
-    rootParameters[0].InitAsConstantBufferView(0, 0, D3D12_SHADER_VISIBILITY_ALL);
+  CD3DX12_ROOT_PARAMETER rootParameters[2];
+  rootParameters[0].InitAsConstantBufferView(0, 0, D3D12_SHADER_VISIBILITY_ALL);
 
-    CD3DX12_ROOT_SIGNATURE_DESC desc{};
-    desc.Init(
-      1, rootParameters, 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT
-    );
+  D3D12_DESCRIPTOR_RANGE rg{D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 1, 0, 0};
+  rootParameters[1].InitAsDescriptorTable(1, &rg, D3D12_SHADER_VISIBILITY_ALL);
 
-    Microsoft::WRL::ComPtr<ID3DBlob> signatureBlob;
-    Microsoft::WRL::ComPtr<ID3DBlob> errorBlob;
-    DX::ThrowIfFailed(D3D12SerializeRootSignature(
-      &desc, D3D_ROOT_SIGNATURE_VERSION_1_0, signatureBlob.GetAddressOf(), errorBlob.GetAddressOf()
-    ));
+  dxh::DescriptorPool<D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, D3D12_DESCRIPTOR_HEAP_FLAG_NONE>
+    cbvPool{device.Get()};
+  auto cbv = cbvPool.Allocate();
 
-    device.Get()->CreateRootSignature(
-      0, signatureBlob->GetBufferPointer(), signatureBlob->GetBufferSize(),
-      IID_PPV_ARGS(rootSignature.ReleaseAndGetAddressOf())
-    );
-  }
+  dxh::UploadHeapArray<ConstantBuffer> constantBuffer{device.Get(), 1};
+  device.CreateCBV(constantBuffer, cbv);
+
+  dxh::RootSignature rs{device.Get(), 2, rootParameters};
+
+  dxh::DynamicDescriptorHeap dynamicHeap{device.Get(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV};
+
+  dynamicHeap.ParseRootSignature(rs);
+  dynamicHeap.SetDescriptors(1, 0, 1, &cbv);
 
   dxh::VertexShader vertexShader{L"shader.hlsl", "MainVS", 0};
   dxh::PixelShader pixelShader{L"shader.hlsl", "MainPS", 0};
@@ -170,7 +164,7 @@ int WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow)
     desc.DepthStencilState.StencilEnable = FALSE;
 
     desc.InputLayout = {inputLayout, _countof(inputLayout)};
-    desc.pRootSignature = rootSignature.Get();
+    desc.pRootSignature = rs.GetRootSignature();
     desc.VS = CD3DX12_SHADER_BYTECODE(vertexShader.ByteCode());
     desc.PS = CD3DX12_SHADER_BYTECODE(pixelShader.ByteCode());
     desc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
@@ -208,15 +202,14 @@ int WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow)
     cmdAlloc.Reset();
     cmdList.Reset(cmdAlloc.Get());
 
-    cmdList.Transition(
-      swapChainRender.CurrentBuffer(), D3D12_RESOURCE_STATE_PRESENT,
-      D3D12_RESOURCE_STATE_RENDER_TARGET
-    );
+    rc.PrepareSwapChainForRender(cmdList);
 
-    cmdList.Get()->SetGraphicsRootSignature(rootSignature.Get());
+    cmdList.SetRootSignature(rs);
     cmdList.Get()->SetPipelineState(pso.Get());
 
-    cmdList.Get()->SetGraphicsRootConstantBufferView(0, constantBuffer.GPUVirtualAddress());
+    cmdList.SetRootCBV(0, constantBuffer.Resource());
+
+    dynamicHeap.BindModifiedDescriptors(device.Get(), cmdList.Get());
 
     cmdList.Get()->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
@@ -231,29 +224,21 @@ int WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow)
     };
     cmdList.Get()->IASetIndexBuffer(&ibv);
 
-    auto viewport = dxh::MakeViewport(swapChain);
-    cmdList.Get()->RSSetViewports(1, &viewport);
-    auto scissorRect = dxh::MakeScissorRect(swapChain);
-    cmdList.Get()->RSSetScissorRects(1, &scissorRect);
+    auto rtv = rc.swapChainManager->CurrentRTV();
+    cmdList.ClearRTV(rtv, {0.1f, 0.2f, 0.4f, 1.f});
 
-    auto rtv = swapChainRender.CurrentRTV();
-    cmdList.Get()->OMSetRenderTargets(1, &rtv, FALSE, nullptr);
-
-    FLOAT bgColor[] = {0.1f, 0.2f, 0.4f, 1.f};
-    cmdList.Get()->ClearRenderTargetView(rtv, bgColor, 0, nullptr);
+    cmdList.SetViewport(swapChain);
+    cmdList.SetScissorRect(swapChain);
 
     cmdList.Get()->DrawIndexedInstanced(3, 1, 0, 0, 0);
 
-    cmdList.Transition(
-      swapChainRender.CurrentBuffer(), D3D12_RESOURCE_STATE_RENDER_TARGET,
-      D3D12_RESOURCE_STATE_PRESENT
-    );
+    rc.PrepareSwapChainForPresent(cmdList);
 
     cmdList.Close();
     cmdList.Execute(cmdQueue.Get());
 
-    fence.FlushCommandQueue(cmdQueue.Get());
-    swapChainRender.Present();
+    rc.FlushCommandQueue();
+    rc.Present();
   }
 }
 

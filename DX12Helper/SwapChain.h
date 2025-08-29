@@ -3,6 +3,7 @@
 #include <array>
 
 #include "PCH.h"
+#include "Resources.h"
 
 using DX::ThrowIfFailed;
 
@@ -67,10 +68,10 @@ private:
 };
 
 template<size_t bufferCount>
-class SwapChainRender
+class SwapChainManager
 {
 public:
-  SwapChainRender(
+  SwapChainManager(
     ID3D12Device* device,
     SwapChain<bufferCount>& swapChain,
     std::array<D3D12_CPU_DESCRIPTOR_HANDLE, bufferCount> bufferRTVs
@@ -85,6 +86,7 @@ public:
       desc.Texture2D.MipSlice = 0;
       desc.Texture2D.PlaneSlice = 0;
       ID3D12Resource* buffer = swapChain.Buffer(i);
+      buffers[i] = std::make_unique<dxh::TrackedResource>(buffer, std::string("SwapChainBuffer") + std::to_string(i));
       if (buffer) {
         device->CreateRenderTargetView(buffer, &desc, bufferRTVs[i]);
       }
@@ -96,12 +98,16 @@ public:
     return bufferRTVs[swapChain.CurrentBackBufferIndex()];
   }
 
-  ID3D12Resource* CurrentBuffer() { return swapChain.Buffer(swapChain.CurrentBackBufferIndex()); }
+  dxh::TrackedResource* CurrentBuffer()
+  {
+    return buffers[swapChain.CurrentBackBufferIndex()].get();
+  }
 
   void Present() { ThrowIfFailed(swapChain.Get()->Present(1, 0)); }
 
 private:
   SwapChain<bufferCount>& swapChain;
+  std::array<std::unique_ptr<dxh::TrackedResource>, bufferCount> buffers{};
   std::array<D3D12_CPU_DESCRIPTOR_HANDLE, bufferCount> bufferRTVs;
 };
 
