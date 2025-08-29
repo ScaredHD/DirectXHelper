@@ -2,9 +2,11 @@
 
 
 #include <queue>
+#include <unordered_map>
 #include <utility>
 
 #include "PCH.h"
+#include "RootSignature.h"
 
 
 namespace dxh
@@ -90,6 +92,40 @@ private:
 
   std::queue<RetiredHeap> retiredHeaps;
   std::queue<std::unique_ptr<DescriptorHeap>> availableHeaps;
+
+  size_t currentCapacity = 0;
+};
+
+
+struct DescriptorTableCache {
+
+  struct Entry {
+    bool dirty;
+    std::vector<D3D12_CPU_DESCRIPTOR_HANDLE> handles;
+  };
+
+  std::unordered_map<int, Entry> rootIndexToEntry;
+  
+};
+
+class DynamicDescriptorHeap
+{
+public:
+  void ParseRootSignature(const RootSignature& rootSignature);
+
+  void SetDescriptors(
+    UINT rootIndex,
+    UINT offset,
+    UINT count,
+    const D3D12_CPU_DESCRIPTOR_HANDLE handles[]
+  );
+
+  void BindDescriptors(ID3D12GraphicsCommandList* commandList);
+
+  DescriptorTableCache cache;
+
+
+private:
 };
 
 
