@@ -34,6 +34,7 @@ DescriptorHeap* DescriptorHeapPool::RequestHeap()
   nextAvailableIndex = 0;
   return currentHeap.get();
 }
+
 DescriptorHeap* DescriptorHeapPool::CurrentHeap()
 {
   if (!currentHeap) {
@@ -41,15 +42,16 @@ DescriptorHeap* DescriptorHeapPool::CurrentHeap()
   }
   return currentHeap.get();
 }
-void DescriptorHeapPool::RetireHeap(uint64_t fenceValue)
+
+void DescriptorHeapPool::RetireHeap()
 {
   if (!currentHeap) {
     return;
   }
 
   RetiredHeap retired;
-  retired.fenceValue = fenceValue;
   retired.heap = std::move(currentHeap);
+  retired.fenced = false;
   retiredHeaps.push(std::move(retired));
   currentHeap.reset();
 }
@@ -57,7 +59,7 @@ void DescriptorHeapPool::RetireHeap(uint64_t fenceValue)
 
 void DynamicDescriptorHeap::ParseRootSignature(const RootSignature& rootSignature)
 {
-  cache.rootIndexToEntry.clear();
+  cache.rootIndexToTable.clear();
 
   for (int i = 0; i < rootSignature.ParameterCount(); ++i) {
     const CD3DX12_ROOT_PARAMETER1& param = rootSignature.Parameter(i);
@@ -70,10 +72,10 @@ void DynamicDescriptorHeap::ParseRootSignature(const RootSignature& rootSignatur
       const D3D12_DESCRIPTOR_RANGE1& range = param.DescriptorTable.pDescriptorRanges[j];
       descriptorCount += range.NumDescriptors;
     }
-    DescriptorTableCache::Entry entry{};
+    DescriptorTableCache::TableEntry entry{};
     entry.dirty = false;
     entry.handles.resize(descriptorCount);
-    cache.rootIndexToEntry[i] = std::move(entry);
+    cache.rootIndexToTable[i] = std::move(entry);
   }
 }
 
@@ -84,13 +86,29 @@ void DynamicDescriptorHeap::SetDescriptors(
   const D3D12_CPU_DESCRIPTOR_HANDLE handles[]
 )
 {
-  assert(cache.rootIndexToEntry.count(rootIndex));
+  assert(cache.rootIndexToTable.count(rootIndex));
 
-  DescriptorTableCache::Entry& entry = cache.rootIndexToEntry[rootIndex];
+  DescriptorTableCache::TableEntry& entry = cache.rootIndexToTable[rootIndex];
+  assert(offset < entry.DescriptorCount());
+  assert(offset + count <= entry.DescriptorCount());
   entry.dirty = true;
-  entry.handles.resize(count);
   std::copy(handles, handles + count, std::begin(entry.handles) + offset);
-  
+}
+
+void DynamicDescriptorHeap::BindModifiedDescriptors(ID3D12GraphicsCommandList* commandList)
+{
+  size_t descriptorsToAlloc = cache.StagedDescriptorCount();
+  if (descriptorsToAlloc > heapPool.AvailableDescriptorCount()) {
+    heapPool.RetireHeap();
+    heapPool.RequestHeap();
+  }
+
+
+  for (const auto& [rootIndex, entry] : cache.rootIndexToTable) {
+    if (!entry.dirty) {
+      continue;
+    }
+  }
 }
 
 }  // namespace dxh

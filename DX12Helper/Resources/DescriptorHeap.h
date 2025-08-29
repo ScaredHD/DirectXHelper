@@ -74,10 +74,20 @@ public:
 
   DescriptorHeap* CurrentHeap();
 
+  void RetireHeap();
+
+  void UpdateRetiredHeaps();
+
+  void MarkRetiredHeaps(uint64_t fenceValue);
+
+  UINT NextAvailableIndex() const { return nextAvailableIndex; }
+
+  UINT AvailableDescriptorCount() const
+  {
+    return currentHeap ? currentHeap->Count() - nextAvailableIndex : 0;
+  }
 
 private:
-  void RetireHeap(uint64_t fenceValue);
-
   Microsoft::WRL::ComPtr<ID3D12Device> device;
   D3D12_DESCRIPTOR_HEAP_TYPE type;
   UINT descriptorsPerHeap = 1024;
@@ -88,6 +98,7 @@ private:
   struct RetiredHeap {
     std::unique_ptr<DescriptorHeap> heap;
     uint64_t fenceValue;
+    bool fenced = false;
   };
 
   std::queue<RetiredHeap> retiredHeaps;
@@ -99,13 +110,34 @@ private:
 
 struct DescriptorTableCache {
 
-  struct Entry {
+  struct TableEntry {
     bool dirty;
     std::vector<D3D12_CPU_DESCRIPTOR_HANDLE> handles;
+
+    size_t DescriptorCount() const { return handles.size(); }
   };
 
-  std::unordered_map<int, Entry> rootIndexToEntry;
-  
+  std::unordered_map<int, TableEntry> rootIndexToTable;
+
+  size_t StagedDescriptorCount() const
+  {
+    return std::accumulate(
+      std::begin(rootIndexToTable), std::end(rootIndexToTable), 0,
+      [](const auto& p0, const auto& p1) {
+        return (p0.second.dirty ? p0.second.DescriptorCount() : 0) +
+               (p1.second.dirty ? p1.second.DescriptorCount() : 0);
+      }
+    );
+  }
+
+  void Clear() { rootIndexToTable.clear(); }
+
+  void MarkAllDirty()
+  {
+    for (auto& [rootIndex, entry] : rootIndexToTable) {
+      entry.dirty = true;
+    }
+  }
 };
 
 class DynamicDescriptorHeap
@@ -120,12 +152,11 @@ public:
     const D3D12_CPU_DESCRIPTOR_HANDLE handles[]
   );
 
-  void BindDescriptors(ID3D12GraphicsCommandList* commandList);
-
-  DescriptorTableCache cache;
-
+  void BindModifiedDescriptors(ID3D12GraphicsCommandList* commandList);
 
 private:
+  DescriptorHeapPool heapPool;
+  DescriptorTableCache cache;
 };
 
 
