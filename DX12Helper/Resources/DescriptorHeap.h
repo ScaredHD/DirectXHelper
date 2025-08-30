@@ -20,7 +20,7 @@ public:
     ID3D12Device* device,
     D3D12_DESCRIPTOR_HEAP_TYPE type,
     UINT count,
-    D3D12_DESCRIPTOR_HEAP_FLAGS flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE
+    D3D12_DESCRIPTOR_HEAP_FLAGS flags
   )
       : DescriptorHeap{device, D3D12_DESCRIPTOR_HEAP_DESC{type, count, flags, 0}}
   {
@@ -36,19 +36,21 @@ public:
   D3D12_DESCRIPTOR_HEAP_TYPE Type() const { return desc.Type; }
   UINT Count() const { return desc.NumDescriptors; }
 
-  CD3DX12_CPU_DESCRIPTOR_HANDLE CPUHandle(INT index)
+  CD3DX12_CPU_DESCRIPTOR_HANDLE CPUHandle(UINT index)
   {
-    return {heap->GetCPUDescriptorHandleForHeapStart(), index, incrementSize};
+    return {heap->GetCPUDescriptorHandleForHeapStart(), static_cast<INT>(index), incrementSize};
   }
 
 
-  CD3DX12_GPU_DESCRIPTOR_HANDLE GPUHandle(INT index)
+  CD3DX12_GPU_DESCRIPTOR_HANDLE GPUHandle(UINT index)
   {
-    return {heap->GetGPUDescriptorHandleForHeapStart(), index, incrementSize};
+    return {heap->GetGPUDescriptorHandleForHeapStart(), static_cast<INT>(index), incrementSize};
   }
 
 
   ID3D12DescriptorHeap* Heap() const { return heap.Get(); }
+
+  ID3D12DescriptorHeap** HeapAddress() { return heap.GetAddressOf(); }
 
 private:
   UINT incrementSize = 0;
@@ -56,16 +58,65 @@ private:
   Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> heap;
 };
 
+template<D3D12_DESCRIPTOR_HEAP_TYPE heapType, UINT descriptorsPerHeap>
+class CPUDescriptorPool
+{
+public:
+  explicit CPUDescriptorPool(ID3D12Device* device)
+      : device{device},
+        incrementSize{device->GetDescriptorHandleIncrementSize(heapType)}
+  {
+  }
+
+  D3D12_CPU_DESCRIPTOR_HANDLE Allocate(UINT count = 1)
+  {
+    if (heaps.empty() || AvailableDescriptorCount() < count) {
+      RequestHeap();
+    }
+
+    D3D12_CPU_DESCRIPTOR_HANDLE handle = heaps.back().CPUHandle(nextAvailableIndex);
+    nextAvailableIndex += count;
+
+    return handle;
+  }
+
+  void FreeAll()
+  {
+    heaps.clear();
+    nextAvailableIndex = 0;
+  }
+
+private:
+  void RequestHeap()
+  {
+    heaps.emplace_back(device, heapType, descriptorsPerHeap, D3D12_DESCRIPTOR_HEAP_FLAG_NONE);
+    nextAvailableIndex = 0;
+  }
+
+  UINT AvailableDescriptorCount() const
+  {
+    return heaps.empty() ? 0 : heaps.back().Count() - nextAvailableIndex;
+  }
+
+
+  ID3D12Device* device = nullptr;
+  UINT incrementSize = 0;
+  std::vector<DescriptorHeap> heaps;
+  UINT nextAvailableIndex = 0;
+};
+
 class DescriptorHeapPool
 {
 public:
   DescriptorHeapPool(
-    const Microsoft::WRL::ComPtr<ID3D12Device>& device,
+    ID3D12Device* device,
     D3D12_DESCRIPTOR_HEAP_TYPE type,
+    D3D12_DESCRIPTOR_HEAP_FLAGS flag,
     UINT descriptorsPerHeap = 1024
   )
       : device{device},
         type{type},
+        flag{flag},
         descriptorsPerHeap{descriptorsPerHeap}
   {
   }
@@ -76,7 +127,7 @@ public:
 
   void RetireHeap();
 
-  void UpdateRetiredHeaps();
+  void RenewHeaps(ID3D12Fence* fence);
 
   void MarkRetiredHeaps(uint64_t fenceValue);
 
@@ -87,9 +138,28 @@ public:
     return currentHeap ? currentHeap->Count() - nextAvailableIndex : 0;
   }
 
+  bool CanAllocate(UINT count) const { return count <= AvailableDescriptorCount(); }
+
+  D3D12_CPU_DESCRIPTOR_HANDLE Allocate(UINT count)
+  {
+    assert(CanAllocate(count));
+
+    if (!currentHeap) {
+      RequestHeap();
+    }
+
+    D3D12_CPU_DESCRIPTOR_HANDLE handle = currentHeap->CPUHandle(nextAvailableIndex);
+    nextAvailableIndex += count;
+
+    return handle;
+  }
+
+  UINT MaxDescriptorsPerHeap() const { return descriptorsPerHeap; }
+
 private:
-  Microsoft::WRL::ComPtr<ID3D12Device> device;
+  ID3D12Device* device;
   D3D12_DESCRIPTOR_HEAP_TYPE type;
+  D3D12_DESCRIPTOR_HEAP_FLAGS flag;
   UINT descriptorsPerHeap = 1024;
 
   std::unique_ptr<DescriptorHeap> currentHeap;
@@ -103,34 +173,35 @@ private:
 
   std::queue<RetiredHeap> retiredHeaps;
   std::queue<std::unique_ptr<DescriptorHeap>> availableHeaps;
-
-  size_t currentCapacity = 0;
 };
-
 
 struct DescriptorTableCache {
 
   struct TableEntry {
     bool dirty;
     std::vector<D3D12_CPU_DESCRIPTOR_HANDLE> handles;
-
     size_t DescriptorCount() const { return handles.size(); }
   };
 
-  std::unordered_map<int, TableEntry> rootIndexToTable;
+  std::unordered_map<size_t, TableEntry> rootIndexToTable;
 
   size_t StagedDescriptorCount() const
   {
     return std::accumulate(
-      std::begin(rootIndexToTable), std::end(rootIndexToTable), 0,
-      [](const auto& p0, const auto& p1) {
-        return (p0.second.dirty ? p0.second.DescriptorCount() : 0) +
-               (p1.second.dirty ? p1.second.DescriptorCount() : 0);
+      std::begin(rootIndexToTable), std::end(rootIndexToTable), 0, [](size_t sum, const auto& p) {
+        return sum + (p.second.dirty ? p.second.DescriptorCount() : 0);
       }
     );
   }
 
   void Clear() { rootIndexToTable.clear(); }
+
+  bool IsDirty() const
+  {
+    return std::any_of(std::begin(rootIndexToTable), std::end(rootIndexToTable), [](const auto& p) {
+      return p.second.dirty;
+    });
+  }
 
   void MarkAllDirty()
   {
@@ -143,6 +214,11 @@ struct DescriptorTableCache {
 class DynamicDescriptorHeap
 {
 public:
+  DynamicDescriptorHeap(ID3D12Device* device, D3D12_DESCRIPTOR_HEAP_TYPE type)
+      : heapPool{device, type, D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE}
+  {
+  }
+
   void ParseRootSignature(const RootSignature& rootSignature);
 
   void SetDescriptors(
@@ -152,7 +228,8 @@ public:
     const D3D12_CPU_DESCRIPTOR_HANDLE handles[]
   );
 
-  void BindModifiedDescriptors(ID3D12GraphicsCommandList* commandList);
+
+  void BindModifiedDescriptors(ID3D12Device* device, ID3D12GraphicsCommandList* commandList);
 
 private:
   DescriptorHeapPool heapPool;

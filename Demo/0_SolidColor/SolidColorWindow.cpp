@@ -59,7 +59,7 @@ int WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow)
   );
 
   auto rtvHeap = std::make_unique<dxh::DescriptorHeap>(
-    device->Get(), D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 2
+    device->Get(), D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 2, D3D12_DESCRIPTOR_HEAP_FLAG_NONE
   );
 
   dxh::SwapChainRender<2> swapChainRender(

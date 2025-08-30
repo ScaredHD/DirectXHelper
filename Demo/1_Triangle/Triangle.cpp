@@ -7,6 +7,7 @@
 #include "Fence.h"
 #include "PCH.h"
 #include "Resources.h"
+#include "RootSignature.h"
 #include "Shader.h"
 #include "SwapChain.h"
 #include "Timer.h"
@@ -26,6 +27,7 @@ struct VertexU {
 
 struct ConstantBuffer {
   float time;
+  
 };
 
 
@@ -74,7 +76,9 @@ int WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow)
   dxh::CommandQueue cmdQueue{device.Get()};
   dxh::SwapChain<2> swapChain{factory.Get(), cmdQueue.Get(), hwnd, 800, 600};
 
-  dxh::DescriptorHeap rtvHeap{device.Get(), D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 2};
+  dxh::DescriptorHeap rtvHeap{
+    device.Get(), D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 2, D3D12_DESCRIPTOR_HEAP_FLAG_NONE
+  };
   dxh::SwapChainRender<2> swapChainRender{
     device.Get(), swapChain, {rtvHeap.CPUHandle(0), rtvHeap.CPUHandle(1)}
   };
@@ -116,8 +120,6 @@ int WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow)
   fence.FlushCommandQueue(cmdQueue.Get());
 
 
-  dxh::UploadHeapArray<ConstantBuffer> constantBuffer{device.Get(), 1};
-
   D3D12_INPUT_ELEMENT_DESC inputLayout[] = {
     {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
      0},
@@ -130,27 +132,30 @@ int WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow)
   };
 
 
-  Microsoft::WRL::ComPtr<ID3D12RootSignature> rootSignature;
-  {
-    CD3DX12_ROOT_PARAMETER rootParameters[1];
-    rootParameters[0].InitAsConstantBufferView(0, 0, D3D12_SHADER_VISIBILITY_ALL);
+  CD3DX12_ROOT_PARAMETER rootParameters[2];
+  rootParameters[0].InitAsConstantBufferView(0, 0, D3D12_SHADER_VISIBILITY_ALL);
 
-    CD3DX12_ROOT_SIGNATURE_DESC desc{};
-    desc.Init(
-      1, rootParameters, 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT
-    );
+  D3D12_DESCRIPTOR_RANGE rg{D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 1, 0, 0};
+  rootParameters[1].InitAsDescriptorTable(1, &rg, D3D12_SHADER_VISIBILITY_ALL);
 
-    Microsoft::WRL::ComPtr<ID3DBlob> signatureBlob;
-    Microsoft::WRL::ComPtr<ID3DBlob> errorBlob;
-    DX::ThrowIfFailed(D3D12SerializeRootSignature(
-      &desc, D3D_ROOT_SIGNATURE_VERSION_1_0, signatureBlob.GetAddressOf(), errorBlob.GetAddressOf()
-    ));
+  dxh::DescriptorHeap cbvHeap{
+    device.Get(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 256, D3D12_DESCRIPTOR_HEAP_FLAG_NONE
+  };
 
-    device.Get()->CreateRootSignature(
-      0, signatureBlob->GetBufferPointer(), signatureBlob->GetBufferSize(),
-      IID_PPV_ARGS(rootSignature.ReleaseAndGetAddressOf())
-    );
-  }
+  dxh::UploadHeapArray<ConstantBuffer> constantBuffer{device.Get(), 1};
+
+  D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc{};
+  cbvDesc.BufferLocation = constantBuffer.GPUVirtualAddress();
+  cbvDesc.SizeInBytes = constantBuffer.ByteSize();
+  device.Get()->CreateConstantBufferView(&cbvDesc, cbvHeap.CPUHandle(0));
+
+  dxh::RootSignature rs{device.Get(), 2, rootParameters};
+
+  dxh::DynamicDescriptorHeap dynamicHeap{device.Get(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV};
+
+  dynamicHeap.ParseRootSignature(rs);
+  D3D12_CPU_DESCRIPTOR_HANDLE cbvHandles[] = {cbvHeap.CPUHandle(0)};
+  dynamicHeap.SetDescriptors(1, 0, 1, cbvHandles);
 
   dxh::VertexShader vertexShader{L"shader.hlsl", "MainVS", 0};
   dxh::PixelShader pixelShader{L"shader.hlsl", "MainPS", 0};
@@ -170,7 +175,7 @@ int WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow)
     desc.DepthStencilState.StencilEnable = FALSE;
 
     desc.InputLayout = {inputLayout, _countof(inputLayout)};
-    desc.pRootSignature = rootSignature.Get();
+    desc.pRootSignature = rs.GetRootSignature();
     desc.VS = CD3DX12_SHADER_BYTECODE(vertexShader.ByteCode());
     desc.PS = CD3DX12_SHADER_BYTECODE(pixelShader.ByteCode());
     desc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
@@ -213,10 +218,15 @@ int WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow)
       D3D12_RESOURCE_STATE_RENDER_TARGET
     );
 
-    cmdList.Get()->SetGraphicsRootSignature(rootSignature.Get());
+    cmdList.Get()->SetGraphicsRootSignature(rs.GetRootSignature());
     cmdList.Get()->SetPipelineState(pso.Get());
 
     cmdList.Get()->SetGraphicsRootConstantBufferView(0, constantBuffer.GPUVirtualAddress());
+
+    // Set descriptors for the current frame
+    D3D12_CPU_DESCRIPTOR_HANDLE cbvHandles[] = {cbvHeap.CPUHandle(0)};
+    dynamicHeap.SetDescriptors(1, 0, 1, cbvHandles);
+    dynamicHeap.BindModifiedDescriptors(device.Get(), cmdList.Get());
 
     cmdList.Get()->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
