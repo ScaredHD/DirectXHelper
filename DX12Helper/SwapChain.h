@@ -77,7 +77,6 @@ public:
     std::array<D3D12_CPU_DESCRIPTOR_HANDLE, bufferCount> bufferRTVs
   )
       : swapChain{swapChain},
-        buffers{},
         bufferRTVs{bufferRTVs}
   {
     for (size_t i = 0; i < bufferCount; ++i) {
@@ -108,7 +107,7 @@ public:
 
 private:
   SwapChain<bufferCount>& swapChain;
-  std::array<std::unique_ptr<dxh::TrackedResource>, bufferCount> buffers;
+  std::array<std::unique_ptr<dxh::TrackedResource>, bufferCount> buffers{};
   std::array<D3D12_CPU_DESCRIPTOR_HANDLE, bufferCount> bufferRTVs;
 };
 

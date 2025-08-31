@@ -12,7 +12,6 @@
 namespace dxh
 {
 
-
 class DescriptorHeap
 {
 public:
@@ -58,23 +57,26 @@ private:
   Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> heap;
 };
 
-template<D3D12_DESCRIPTOR_HEAP_TYPE heapType, UINT descriptorsPerHeap = 1024>
-class CPUDescriptorPool
+template<
+  D3D12_DESCRIPTOR_HEAP_TYPE heapType,
+  D3D12_DESCRIPTOR_HEAP_FLAGS flag,
+  UINT descriptorsPerHeap = 1024>
+class DescriptorPool
 {
 public:
-  explicit CPUDescriptorPool(ID3D12Device* device)
+  explicit DescriptorPool(ID3D12Device* device)
       : device{device},
         incrementSize{device->GetDescriptorHandleIncrementSize(heapType)}
   {
   }
 
-  D3D12_CPU_DESCRIPTOR_HANDLE Allocate(UINT count = 1)
+  CD3DX12_CPU_DESCRIPTOR_HANDLE Allocate(UINT count = 1)
   {
     if (heaps.empty() || AvailableDescriptorCount() < count) {
       RequestHeap();
     }
 
-    D3D12_CPU_DESCRIPTOR_HANDLE handle = heaps.back().CPUHandle(nextAvailableIndex);
+    CD3DX12_CPU_DESCRIPTOR_HANDLE handle = heaps.back().CPUHandle(nextAvailableIndex);
     nextAvailableIndex += count;
 
     return handle;
@@ -89,7 +91,7 @@ public:
 private:
   void RequestHeap()
   {
-    heaps.emplace_back(device, heapType, descriptorsPerHeap, D3D12_DESCRIPTOR_HEAP_FLAG_NONE);
+    heaps.emplace_back(device, heapType, descriptorsPerHeap, flag);
     nextAvailableIndex = 0;
   }
 
@@ -104,6 +106,11 @@ private:
   std::vector<DescriptorHeap> heaps;
   UINT nextAvailableIndex = 0;
 };
+
+using CbvSrvUavPool =
+  DescriptorPool<D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, D3D12_DESCRIPTOR_HEAP_FLAG_NONE>;
+using RTVPool = DescriptorPool<D3D12_DESCRIPTOR_HEAP_TYPE_RTV, D3D12_DESCRIPTOR_HEAP_FLAG_NONE>;
+using DSVPool = DescriptorPool<D3D12_DESCRIPTOR_HEAP_TYPE_DSV, D3D12_DESCRIPTOR_HEAP_FLAG_NONE>;
 
 class DescriptorHeapPool
 {
