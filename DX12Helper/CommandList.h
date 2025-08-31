@@ -5,7 +5,6 @@
 #include "SwapChain.h"
 
 
-
 namespace dxh
 {
 
@@ -45,6 +44,12 @@ public:
     cmdList->SetGraphicsRootSignature(rootSignature.GetRootSignature());
   }
 
+  void SetRootCBV(UINT rootParameterIndex, ID3D12Resource* resource)
+  {
+    cmdList->SetGraphicsRootConstantBufferView(
+      rootParameterIndex, resource->GetGPUVirtualAddress()
+    );
+  }
 
   void SetViewport(const SwapChain<2>& swapChain) const
   {

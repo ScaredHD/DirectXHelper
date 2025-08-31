@@ -207,7 +207,7 @@ int WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow)
     cmdList.SetRootSignature(rs);
     cmdList.Get()->SetPipelineState(pso.Get());
 
-    cmdList.Get()->SetGraphicsRootConstantBufferView(0, constantBuffer.GPUVirtualAddress());
+    cmdList.SetRootCBV(0, constantBuffer.Resource());
 
     dynamicHeap.BindModifiedDescriptors(device.Get(), cmdList.Get());
 
