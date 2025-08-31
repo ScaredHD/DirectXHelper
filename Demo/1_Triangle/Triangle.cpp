@@ -27,7 +27,6 @@ struct VertexU {
 
 struct ConstantBuffer {
   float time;
-  
 };
 
 
@@ -79,7 +78,7 @@ int WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow)
   dxh::DescriptorHeap rtvHeap{
     device.Get(), D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 2, D3D12_DESCRIPTOR_HEAP_FLAG_NONE
   };
-  dxh::SwapChainRender<2> swapChainRender{
+  dxh::SwapChainManager<2> swapChainRender{
     device.Get(), swapChain, {rtvHeap.CPUHandle(0), rtvHeap.CPUHandle(1)}
   };
 
@@ -138,24 +137,18 @@ int WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow)
   D3D12_DESCRIPTOR_RANGE rg{D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 1, 0, 0};
   rootParameters[1].InitAsDescriptorTable(1, &rg, D3D12_SHADER_VISIBILITY_ALL);
 
-  dxh::DescriptorHeap cbvHeap{
-    device.Get(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 256, D3D12_DESCRIPTOR_HEAP_FLAG_NONE
-  };
+  dxh::CPUDescriptorPool<D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV> cbvPool{device.Get()};
+  auto cbv = cbvPool.Allocate();
 
   dxh::UploadHeapArray<ConstantBuffer> constantBuffer{device.Get(), 1};
-
-  D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc{};
-  cbvDesc.BufferLocation = constantBuffer.GPUVirtualAddress();
-  cbvDesc.SizeInBytes = constantBuffer.ByteSize();
-  device.Get()->CreateConstantBufferView(&cbvDesc, cbvHeap.CPUHandle(0));
+  device.CreateCBV(constantBuffer, cbv);
 
   dxh::RootSignature rs{device.Get(), 2, rootParameters};
 
   dxh::DynamicDescriptorHeap dynamicHeap{device.Get(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV};
 
   dynamicHeap.ParseRootSignature(rs);
-  D3D12_CPU_DESCRIPTOR_HANDLE cbvHandles[] = {cbvHeap.CPUHandle(0)};
-  dynamicHeap.SetDescriptors(1, 0, 1, cbvHandles);
+  dynamicHeap.SetDescriptors(1, 0, 1, &cbv);
 
   dxh::VertexShader vertexShader{L"shader.hlsl", "MainVS", 0};
   dxh::PixelShader pixelShader{L"shader.hlsl", "MainPS", 0};
@@ -213,19 +206,13 @@ int WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow)
     cmdAlloc.Reset();
     cmdList.Reset(cmdAlloc.Get());
 
-    cmdList.Transition(
-      swapChainRender.CurrentBuffer(), D3D12_RESOURCE_STATE_PRESENT,
-      D3D12_RESOURCE_STATE_RENDER_TARGET
-    );
+    cmdList.Transition(*swapChainRender.CurrentBuffer(), D3D12_RESOURCE_STATE_RENDER_TARGET);
 
-    cmdList.Get()->SetGraphicsRootSignature(rs.GetRootSignature());
+    cmdList.SetRootSignature(rs);
     cmdList.Get()->SetPipelineState(pso.Get());
 
     cmdList.Get()->SetGraphicsRootConstantBufferView(0, constantBuffer.GPUVirtualAddress());
 
-    // Set descriptors for the current frame
-    D3D12_CPU_DESCRIPTOR_HANDLE cbvHandles[] = {cbvHeap.CPUHandle(0)};
-    dynamicHeap.SetDescriptors(1, 0, 1, cbvHandles);
     dynamicHeap.BindModifiedDescriptors(device.Get(), cmdList.Get());
 
     cmdList.Get()->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
@@ -241,23 +228,17 @@ int WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow)
     };
     cmdList.Get()->IASetIndexBuffer(&ibv);
 
-    auto viewport = dxh::MakeViewport(swapChain);
-    cmdList.Get()->RSSetViewports(1, &viewport);
-    auto scissorRect = dxh::MakeScissorRect(swapChain);
-    cmdList.Get()->RSSetScissorRects(1, &scissorRect);
+    cmdList.SetViewport(swapChain);
+    cmdList.SetScissorRect(swapChain);
 
     auto rtv = swapChainRender.CurrentRTV();
-    cmdList.Get()->OMSetRenderTargets(1, &rtv, FALSE, nullptr);
+    cmdList.SetRenderTargets(1, &rtv);
 
-    FLOAT bgColor[] = {0.1f, 0.2f, 0.4f, 1.f};
-    cmdList.Get()->ClearRenderTargetView(rtv, bgColor, 0, nullptr);
+    cmdList.ClearRTV(rtv, {0.1f, 0.2f, 0.4f, 1.f});
 
     cmdList.Get()->DrawIndexedInstanced(3, 1, 0, 0, 0);
 
-    cmdList.Transition(
-      swapChainRender.CurrentBuffer(), D3D12_RESOURCE_STATE_RENDER_TARGET,
-      D3D12_RESOURCE_STATE_PRESENT
-    );
+    cmdList.Transition(*swapChainRender.CurrentBuffer(), D3D12_RESOURCE_STATE_PRESENT);
 
     cmdList.Close();
     cmdList.Execute(cmdQueue.Get());

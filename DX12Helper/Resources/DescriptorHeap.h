@@ -58,7 +58,7 @@ private:
   Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> heap;
 };
 
-template<D3D12_DESCRIPTOR_HEAP_TYPE heapType, UINT descriptorsPerHeap>
+template<D3D12_DESCRIPTOR_HEAP_TYPE heapType, UINT descriptorsPerHeap = 1024>
 class CPUDescriptorPool
 {
 public:

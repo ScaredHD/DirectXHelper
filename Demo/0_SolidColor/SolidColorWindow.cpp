@@ -62,7 +62,7 @@ int WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow)
     device->Get(), D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 2, D3D12_DESCRIPTOR_HEAP_FLAG_NONE
   );
 
-  dxh::SwapChainRender<2> swapChainRender(
+  dxh::SwapChainManager<2> swapChainRender(
     device->Get(), *swapChain, {rtvHeap->CPUHandle(0), rtvHeap->CPUHandle(1)}
   );
 
@@ -92,7 +92,7 @@ int WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow)
     auto currentRTV = swapChainRender.CurrentRTV();
     cmdList->Get()->OMSetRenderTargets(1, &currentRTV, FALSE, nullptr);
 
-    ID3D12Resource* currentBuffer = swapChainRender.CurrentBuffer();
+    ID3D12Resource* currentBuffer = swapChainRender.CurrentBuffer()->Resource();
 
     cmdList->Transition(
       currentBuffer, D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET
