@@ -59,6 +59,12 @@ struct RenderContext {
   }
 
   void Present() const { swapChainManager->Present(); }
+
+  void CloseAndExecute(GraphicsCommandList& cmdList) const
+  {
+    cmdList.Close();
+    cmdList.Execute(*cmdQueue);
+  }
 };
 
 }  // namespace dxh

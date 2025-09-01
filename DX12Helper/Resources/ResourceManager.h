@@ -2,81 +2,63 @@
 
 #include <unordered_map>
 
+#include "Buffers.h"
+#include "DescriptorHeap.h"
+#include "Device.h"
 #include "Resources.h"
+#include "Textures.h"
 
 
-class ResourceManager
+namespace dxh
+{
+
+
+class BufferManager
 {
 public:
-  enum class CollisionResponse : uint8_t { Ignore, Rename, Error };
+  explicit BufferManager(Device& device) : device{device}, cbvSrvUavPool{device.Get()} {}
 
-  bool Register(
-    const std::shared_ptr<dxh::TrackedResource>& resource,
-    CollisionResponse collisionResponse = CollisionResponse::Ignore
-  )
+  void Register(const std::shared_ptr<Buffer>& resource)
   {
-    if (!resource) {
-      return false;
-    }
-
-    if (Find(resource->Name())) {
-      if (collisionResponse == CollisionResponse::Rename) {
-        size_t suffix = 1;
-        auto rename = [&suffix](const std::string& name) {
-          return name + "_" + std::to_string(suffix);
-        };
-
-        while (Find(rename(resource->Name()))) {
-          if (suffix > 1000) {
-            return false;
-          }
-          ++suffix;
-        }
-        resource->Rename(rename(resource->Name()));
-      } else if (collisionResponse == CollisionResponse::Error) {
-        throw std::runtime_error("Resource with name '" + resource->Name() + "' already exists.");
-      } else if (collisionResponse == CollisionResponse::Ignore) {
-        return false;
-      }
-    }
-
-    nameToRes[resource->Name()] = resource;
-    return true;
+    entries[resource.get()].resource = resource;
+    device.CreateCBV(*resource, cbvSrvUavPool.Allocate());
   }
 
-  std::shared_ptr<dxh::TrackedResource> Find(const std::string& name) const
+  std::shared_ptr<Buffer> Find(const Buffer* resource)
   {
-    auto it = nameToRes.find(name);
-    if (it != nameToRes.end()) {
-      return it->second;
+    if (entries.count(resource)) {
+      return entries[resource].resource;
     }
     return nullptr;
   }
 
-  size_t Count() const { return nameToRes.size(); }
-
-  std::vector<std::string> ManagedResourceNames() const
+  std::shared_ptr<Buffer> FindByName(const std::string& name)
   {
-    std::vector<std::string> names;
-    names.reserve(nameToRes.size());
-    for (const auto& pair : nameToRes) {
-      names.push_back(pair.first);
-    }
-    return names;
-  }
-
-  void CleanupUnusedResources()
-  {
-    for (auto it = nameToRes.begin(); it != nameToRes.end();) {
-      if (it->second.use_count() == 1) {
-        it = nameToRes.erase(it);
-      } else {
-        ++it;
+    for (const auto& pair : entries) {
+      if (pair.second.resource->Name() == name) {
+        return pair.second.resource;
       }
     }
+    return nullptr;
   }
 
+  D3D12_CPU_DESCRIPTOR_HANDLE GetCBV(const Buffer* resource)
+  {
+    if (entries.count(resource)) {
+      return entries[resource].cbv;
+    }
+    return {};
+  }
 
 private:
-  std::unordered_map<std::string, std::shared_ptr<dxh::TrackedResource>> nameToRes;
+  struct Entry {
+    std::shared_ptr<Buffer> resource;
+    D3D12_CPU_DESCRIPTOR_HANDLE cbv;
+  };
+
+  Device& device;
+  std::unordered_map<const Buffer*, Entry> entries;
+  dxh::CbvSrvUavPool cbvSrvUavPool;
 };
+
+}  // namespace dxh

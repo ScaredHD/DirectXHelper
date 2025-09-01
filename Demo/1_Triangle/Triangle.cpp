@@ -7,11 +7,13 @@
 #include "Fence.h"
 #include "PCH.h"
 #include "RenderContext.h"
+#include "ResourceManager.h"
 #include "Resources.h"
 #include "RootSignature.h"
 #include "Shader.h"
 #include "SwapChain.h"
 #include "Timer.h"
+
 
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
@@ -234,12 +236,13 @@ int WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow)
 
     rc.PrepareSwapChainForPresent(cmdList);
 
-    cmdList.Close();
-    cmdList.Execute(cmdQueue.Get());
+    rc.CloseAndExecute(cmdList);
 
     rc.FlushCommandQueue();
     rc.Present();
   }
+
+  dxh::BufferManager rm{*rc.device};
 }
 
 
