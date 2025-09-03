@@ -5,6 +5,8 @@
 #include "DescriptorHeap.h"
 #include "Device.h"
 #include "Fence.h"
+#include "GeometryRender.h"
+#include "MeshFactory.h"
 #include "PCH.h"
 #include "RenderContext.h"
 #include "ResourceManager.h"
@@ -13,20 +15,13 @@
 #include "Shader.h"
 #include "SwapChain.h"
 #include "Timer.h"
+#include "SimpleVertex.h"
 
 
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
-struct VertexF {
-  DirectX::XMFLOAT3 position;
-  DirectX::XMFLOAT4 color;
-};
-
-struct VertexU {
-  DirectX::XMFLOAT3 position;
-  uint8_t color[4];  // Use uint8_t for color components
-};
+using Vertex = dxh::SimpleVertex;
 
 struct ConstantBuffer {
   float time;
@@ -75,58 +70,26 @@ int WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow)
 
   dxh::RenderContext rc{factory.Get(), hwnd, 800, 600};
   auto& device = *rc.device;
-  auto& cmdQueue = *rc.cmdQueue;
   auto& swapChain = *rc.swapChain;
 
   dxh::CommandAllocator cmdAlloc{device.Get()};
   dxh::GraphicsCommandList cmdList{device.Get(), cmdAlloc.Get()};
 
+  Vertex v0 = {{0.0f, 0.5f, 0.0f}, {255, 0, 0, 255}};
+  Vertex v1 = {{-0.5f, -0.5f, 0.0f}, {0, 255, 0, 255}};
+  Vertex v2 = {{0.5f, -0.5f, 0.0f}, {0, 0, 255, 255}};
+  dxh::TriangleMeshData<Vertex, uint16_t> triangleMeshData = dxh::CreateTriangle<Vertex, uint16_t>(
+    v0, v1, v2
+  );
 
-#define USE_UNORM
-
-#if defined(USE_UNORM)
-  using Vertex = VertexU;
-  VertexU v0u = {{0.0f, 0.5f, 0.0f}, {255, 0, 0, 255}};
-  VertexU v1u = {{-0.5f, -0.5f, 0.0f}, {0, 255, 0, 255}};
-  VertexU v2u = {{0.5f, -0.5f, 0.0f}, {0, 0, 255, 255}};
-  std::vector<Vertex> vertices = {v0u, v1u, v2u};
-#else
-  using Vertex = VertexF;
-  VertexF v0 = {{0.0f, 0.5f, 0.0f}, {1.0f, 0.0f, 0.0f, 1.0f}};
-  VertexF v1 = {{-0.5f, -0.5f, 0.0f}, {0.0f, 1.0f, 0.0f, 1.0f}};
-  VertexF v2 = {{0.5f, -0.5f, 0.0f}, {0.0f, 0.0f, 1.0f, 1.0f}};
-  std::vector<VertexF> vertices = {v0, v1, v2};
-#endif
-
-  size_t vertexBufferSize = vertices.size() * sizeof(Vertex);
-  dxh::DefaultHeapBuffer vertexBuffer{device.Get(), vertexBufferSize};
-  vertexBuffer.PrepareLoad(0, vertices.data(), 0, vertexBufferSize);
-  vertexBuffer.QueueCopyCommands(cmdList);
-
-  std::vector<uint16_t> indices = {0, 1, 2};
-
-  size_t indexBufferSize = indices.size() * sizeof(uint16_t);
-  dxh::DefaultHeapBuffer indexBuffer{device.Get(), indexBufferSize};
-  indexBuffer.PrepareLoad(0, indices.data(), 0, indexBufferSize);
-  indexBuffer.QueueCopyCommands(cmdList);
-
-  cmdList.Close();
-  cmdList.Execute(cmdQueue.Get());
-
-  rc.FlushCommandQueue();
-
-
-  D3D12_INPUT_ELEMENT_DESC inputLayout[] = {
-    {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
-     0},
-#if defined(USE_UNORM)
-    {"COLOR", 0, DXGI_FORMAT_R8G8B8A8_UNORM, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0}
-#else
-    {"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
-     0}
-#endif
+  dxh::TriangleMeshRenderResource<Vertex, uint16_t> triangleMeshResource{
+    device.Get(), &triangleMeshData
   };
 
+  triangleMeshResource.QueueUploadMeshData(cmdList);
+
+  rc.CloseAndExecute(cmdList);
+  rc.FlushCommandQueue();
 
   CD3DX12_ROOT_PARAMETER rootParameters[2];
   rootParameters[0].InitAsConstantBufferView(0, 0, D3D12_SHADER_VISIBILITY_ALL);
@@ -165,7 +128,7 @@ int WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow)
     desc.DepthStencilState.DepthEnable = FALSE;
     desc.DepthStencilState.StencilEnable = FALSE;
 
-    desc.InputLayout = {inputLayout, _countof(inputLayout)};
+    desc.InputLayout = {Vertex::inputLayout, Vertex::inputLayoutCount};
     desc.pRootSignature = rs.GetRootSignature();
     desc.VS = CD3DX12_SHADER_BYTECODE(vertexShader.ByteCode());
     desc.PS = CD3DX12_SHADER_BYTECODE(pixelShader.ByteCode());
@@ -207,27 +170,15 @@ int WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow)
     rc.PrepareSwapChainForRender(cmdList);
 
     cmdList.SetRootSignature(rs);
-    cmdList.Get()->SetPipelineState(pso.Get());
+    cmdList.SetPipelineState(pso.Get());
 
     cmdList.SetRootCBV(0, constantBuffer.Resource());
 
     dynamicHeap.BindModifiedDescriptors(device.Get(), cmdList.Get());
 
-    cmdList.Get()->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    rc.ClearBackBuffer(cmdList, {0.1f, 0.2f, 0.4f, 1.f});
 
-    auto vbv = D3D12_VERTEX_BUFFER_VIEW{
-      vertexBuffer.GPUVirtualAddress(), static_cast<UINT>(vertexBuffer.ByteSize()), sizeof(Vertex)
-    };
-    cmdList.Get()->IASetVertexBuffers(0, 1, &vbv);
-
-    auto ibv = D3D12_INDEX_BUFFER_VIEW{
-      indexBuffer.GPUVirtualAddress(), static_cast<UINT>(indexBuffer.ByteSize()),
-      DXGI_FORMAT_R16_UINT
-    };
-    cmdList.Get()->IASetIndexBuffer(&ibv);
-
-    auto rtv = rc.swapChainManager->CurrentRTV();
-    cmdList.ClearRTV(rtv, {0.1f, 0.2f, 0.4f, 1.f});
+    cmdList.SetTriangleMeshToDraw(triangleMeshResource);
 
     cmdList.SetViewport(swapChain);
     cmdList.SetScissorRect(swapChain);
@@ -241,8 +192,6 @@ int WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow)
     rc.FlushCommandQueue();
     rc.Present();
   }
-
-  dxh::BufferManager rm{*rc.device};
 }
 
 

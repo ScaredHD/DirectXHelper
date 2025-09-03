@@ -127,14 +127,16 @@ public:
   {
   }
 
-  void PrepareLoad(size_t dstOffset, const void* srcBegin, size_t srcOffset, size_t byteSize);
+  void StageUpload(size_t dstOffset, const void* srcBegin, size_t srcOffset, size_t byteSize);
 
-  void QueueCopyCommands(GraphicsCommandList& cmdList);
+  void QueueUpload(GraphicsCommandList& cmdList);
 
 private:
   std::unique_ptr<UploadHeapBuffer> uploader;
   std::vector<CopyCommand> copyCommands;
 };
+
+
 
 
 }  // namespace dxh

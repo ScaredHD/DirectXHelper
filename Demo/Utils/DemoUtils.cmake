@@ -12,7 +12,7 @@ function(CurrentDemoRuntimeDir outDir)
     set(${outDir} "${binDir}/${suffix}" PARENT_SCOPE)
 endfunction()
 
-function(CopyMatchedFilesAfterBuild targetName srcPath pattern destPath recursive shouldEcho)
+function(CopyMatchedFilesAfterBuild targetName srcPath pattern destPath recursive)
     set(filePattern ${srcPath}/${pattern})
 
     if (recursive)
@@ -21,29 +21,23 @@ function(CopyMatchedFilesAfterBuild targetName srcPath pattern destPath recursiv
         file(GLOB matchedFiles CMAKE_CONFIGURE_DEPENDS ${filePattern})
     endif()
 
-    if (matchedFiles)
+    foreach(matchedFile ${matchedFiles})
+        get_filename_component(matchedFileName ${matchedFile} NAME)
+        set(destFile "${destPath}/${matchedFileName}")
+        message(STATUS "Setup copy: ${matchedFile} -> ${destFile}")
         add_custom_command(
-            TARGET ${targetName}
-            POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            ${matchedFiles}
-            ${destPath}
+            OUTPUT "${destFile}"
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different "${matchedFile}" "${destFile}"
+            DEPENDS ${matchedFile}
+            COMMENT "Copying: ${matchedFile} -> ${destFile}"
         )
-
-        get_filename_component(absSrcPath ${srcPath} ABSOLUTE)
-        set(absFilePattern ${absSrcPath}/${pattern})
-
-        get_filename_component(absDestPath ${destPath} ABSOLUTE)
-
-        if(shouldEcho)
-            message(STATUS "[${targetName}] Post-build copy: '${absFilePattern}' -> '${absDestPath}'")
-        endif()
-    endif()
+        target_sources(${targetName} PRIVATE "${destFile}")
+    endforeach()
 endfunction()
 
-function(CopyShadersToOutputDir targetName shaderPath shouldEcho)
+function(CopyShadersToOutputDir targetName shaderPath)
     get_target_property(outputDir ${targetName} RUNTIME_OUTPUT_DIRECTORY)
-    CopyMatchedFilesAfterBuild(${targetName} ${shaderPath} "*.hlsl" ${outputDir} FALSE ${shouldEcho})
+    CopyMatchedFilesAfterBuild(${targetName} ${shaderPath} "*.hlsl" ${outputDir} FALSE)
 endfunction()
 
 function(SetupDemoOutput targetName copyShaders)
@@ -53,6 +47,7 @@ function(SetupDemoOutput targetName copyShaders)
         RUNTIME_OUTPUT_DIRECTORY ${outputDir}
     )
     if (${copyShaders})
-        CopyShadersToOutputDir(${targetName} . TRUE)
+        file(GLOB_RECURSE shaderFiles CONFIGURE_DEPENDS "*.hlsl")
+        CopyShadersToOutputDir(${targetName} ${CMAKE_CURRENT_SOURCE_DIR})
     endif()
 endfunction()

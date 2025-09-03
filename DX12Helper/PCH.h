@@ -1,11 +1,15 @@
 #pragma once
 
 #include <algorithm>
+#include <array>
+#include <cassert>
 #include <cmath>
 #include <cstdint>
 #include <memory>
 #include <numeric>
 #include <stdexcept>
+#include <vector>
+
 
 
 // ---

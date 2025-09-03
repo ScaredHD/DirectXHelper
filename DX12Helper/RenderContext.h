@@ -65,6 +65,12 @@ struct RenderContext {
     cmdList.Close();
     cmdList.Execute(*cmdQueue);
   }
+
+  void ClearBackBuffer(GraphicsCommandList& cmdList, const DirectX::XMFLOAT4& color) const
+  {
+    auto rtv = swapChainManager->CurrentRTV();
+    cmdList.ClearRTV(rtv, {color.x, color.y, color.z, color.w});
+  }
 };
 
 }  // namespace dxh
