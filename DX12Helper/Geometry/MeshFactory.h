@@ -36,17 +36,17 @@ TriangleMeshData<VertexType, IndexType> CreateBox(std::array<VertexType, 8> vert
     vertices[4], vertices[5], vertices[6], vertices[7]   // Front face (z = 0.5)
   };
   meshData.indices = {
-    // Front face (z = 0.5): v4, v5, v6, v7 - normal points +Z (outward)
+    // Front face (z = 0.5): v4, v5, v6, v7 - CCW: v4->v5->v6, v4->v6->v7
     4, 5, 6, 4, 6, 7,
-    // Back face (z = -0.5): v0, v1, v2, v3 - normal points -Z (outward)
-    0, 1, 2, 0, 2, 3,
-    // Right face (x = 0.5): v1, v5, v6, v2 - normal points +X (outward)
-    1, 5, 6, 1, 6, 2,
-    // Left face (x = -0.5): v4, v0, v3, v7 - normal points -X (outward)
-    4, 0, 3, 4, 3, 7,
-    // Top face (y = 0.5): v3, v2, v6, v7 - normal points +Y (outward)
-    3, 2, 6, 3, 6, 7,
-    // Bottom face (y = -0.5): v0, v1, v5, v4 - normal points -Y (outward)
+    // Back face (z = -0.5): v0, v1, v2, v3 - CCW when viewed from outside: v0->v3->v2, v0->v2->v1
+    0, 3, 2, 0, 2, 1,
+    // Right face (x = 0.5): v1, v5, v6, v2 - CCW: v1->v2->v6, v1->v6->v5  
+    1, 2, 6, 1, 6, 5,
+    // Left face (x = -0.5): v4, v0, v3, v7 - CCW: v4->v7->v3, v4->v3->v0
+    4, 7, 3, 4, 3, 0,
+    // Top face (y = 0.5): v3, v2, v6, v7 - CCW: v3->v7->v6, v3->v6->v2
+    3, 7, 6, 3, 6, 2,
+    // Bottom face (y = -0.5): v0, v1, v5, v4 - CCW: v0->v1->v5, v0->v5->v4
     0, 1, 5, 0, 5, 4
   };
   return meshData;
