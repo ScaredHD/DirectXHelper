@@ -80,7 +80,7 @@ protected:
   void* bufferBegin = nullptr;
 };
 
-template<typename ElemType, size_t alignment = 256>
+template<typename ElemType, size_t alignment = sizeof(ElemType)>
 class UploadHeapArray : public UploadHeapBuffer
 {
 public:
@@ -135,6 +135,9 @@ private:
   std::unique_ptr<UploadHeapBuffer> uploader;
   std::vector<CopyCommand> copyCommands;
 };
+
+template<typename ElemType>
+using ConstantBuffer = UploadHeapArray<ElemType, 256>;
 
 
 

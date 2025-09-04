@@ -19,7 +19,7 @@
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
-struct ConstantBuffer {
+struct ConstantBufferData {
   DirectX::XMFLOAT4X4 view;
   DirectX::XMFLOAT4X4 projection;
   float time;
@@ -88,7 +88,7 @@ int WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow)
   rc.CloseAndExecute(cmdList);
   rc.FlushCommandQueue();
 
-  dxh::UploadHeapArray<ConstantBuffer> constantBuffer{rc.device->Get(), 1};
+  dxh::ConstantBuffer<ConstantBufferData> constantBuffer{rc.device->Get(), 1};
   auto cbv = rc.cbvSrvUavPool.Allocate();
   rc.device->CreateCBV(constantBuffer, cbv);
 
@@ -152,7 +152,7 @@ int WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow)
     cam.lookAt = {0.0f, 0.0f, 0.0f};
     cam.up = {0.0f, 1.0f, 0.0f};
 
-    ConstantBuffer cb;
+    ConstantBufferData cb;
     cb.view = cam.ViewMatrix();
     cb.projection = cam.ProjectionMatrix();
     cb.time = static_cast<float>(time) / 1000.0f;

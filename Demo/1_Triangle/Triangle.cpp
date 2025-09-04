@@ -23,7 +23,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
 using Vertex = dxh::SimpleVertex;
 
-struct ConstantBuffer {
+struct ConstantBufferData {
   float time;
 };
 
@@ -101,7 +101,7 @@ int WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow)
     cbvPool{device.Get()};
   auto cbv = cbvPool.Allocate();
 
-  dxh::UploadHeapArray<ConstantBuffer> constantBuffer{device.Get(), 1};
+  dxh::ConstantBuffer<ConstantBufferData> constantBuffer{device.Get(), 1};
   device.CreateCBV(constantBuffer, cbv);
 
   dxh::RootSignature rs{device.Get(), 2, rootParameters};
@@ -160,7 +160,7 @@ int WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow)
 
     // Render
     long long time = timer.TimeElapsed("main");
-    ConstantBuffer cb;
+    ConstantBufferData cb;
     cb.time = static_cast<float>(time) / 1000.0f;  // Convert to seconds
     constantBuffer.LoadElement(0, cb);
 
