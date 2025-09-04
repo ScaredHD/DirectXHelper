@@ -23,6 +23,7 @@ target_include_directories(
            DX12Helper/Utils
            DX12Helper/Resources
            DX12Helper/Geometry
+           DX12Helper/Render
 )
 
 target_link_libraries(
@@ -43,4 +44,5 @@ if (isTopLevelProject)
     include(Demo/Utils/DemoUtils.cmake)
     add_subdirectory(Demo/0_SolidColor)
     add_subdirectory(Demo/1_Triangle)
+    add_subdirectory(Demo/2_Box)
 endif()

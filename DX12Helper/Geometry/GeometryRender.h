@@ -102,6 +102,19 @@ public:
     indexBuffer->QueueUpload(cmdList);
   }
 
+  struct DrawParam {
+    UINT indexCount = 0;
+    UINT instanceCount = 0;
+    UINT startIndexLocation = 0;
+    INT baseVertexLocation = 0;
+    UINT startInstanceLocation = 0;
+  };
+
+  DrawParam MeshDrawParam() const
+  {
+    return DrawParam{static_cast<UINT>(meshData->IndexCount()), 1, 0, 0, 0};
+  }
+
 private:
   const TriangleMeshData<VertexType, IndexType>* meshData;
   std::unique_ptr<DefaultHeapBuffer> vertexBuffer;

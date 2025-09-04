@@ -1,7 +1,7 @@
 #pragma once
 
-#include "PCH.h"
 #include "Geometry/GeometryRender.h"
+#include "PCH.h"
 
 
 namespace dxh
@@ -50,7 +50,11 @@ public:
 
   void SetScissorRect(const SwapChain<2>& swapChain) const;
 
-  void SetRenderTargets(UINT count, D3D12_CPU_DESCRIPTOR_HANDLE renderTargets[]);
+  void SetRenderTargets(
+    UINT count,
+    D3D12_CPU_DESCRIPTOR_HANDLE renderTargets[],
+    D3D12_CPU_DESCRIPTOR_HANDLE dsv[] = nullptr
+  );
 
   void ClearRTV(D3D12_CPU_DESCRIPTOR_HANDLE rtv, std::array<float, 4> color) const;
 
@@ -60,6 +64,36 @@ public:
 
   template<typename VertexType, typename IndexType>
   void SetTriangleMeshToDraw(const TriangleMeshRenderResource<VertexType, IndexType>& meshResource);
+
+  void ClearDSV(
+    D3D12_CPU_DESCRIPTOR_HANDLE dsv,
+    D3D12_CLEAR_FLAGS flags,
+    float depth,
+    UINT8 stencil
+  ) const;
+
+  void DrawIndexedInstanced(
+    UINT indexCount,
+    UINT instanceCount,
+    UINT startIndexLocation,
+    INT baseVertexLocation,
+    UINT startInstanceLocation
+  ) const
+  {
+    Get()->DrawIndexedInstanced(
+      indexCount, instanceCount, startIndexLocation, baseVertexLocation, startInstanceLocation
+    );
+  }
+
+  template<typename VertexType, typename IndexType>
+  void DrawTriangleMeshResource(const TriangleMeshRenderResource<VertexType, IndexType>& meshResource)
+  {
+    auto meshDrawParam = meshResource.MeshDrawParam();
+    DrawIndexedInstanced(
+      meshDrawParam.indexCount, meshDrawParam.instanceCount, meshDrawParam.startIndexLocation,
+      meshDrawParam.baseVertexLocation, meshDrawParam.startInstanceLocation
+    );
+  }
 
 private:
   Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList> cmdList;

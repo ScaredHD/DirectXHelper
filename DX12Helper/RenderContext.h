@@ -27,7 +27,12 @@ struct RenderContext {
     auto rtv1 = rtvPool.Allocate();
 
     std::array<D3D12_CPU_DESCRIPTOR_HANDLE, 2> rtvHandles = {rtv0, rtv1};
-    swapChainManager = std::make_unique<SwapChainManager<2>>(device->Get(), *swapChain, rtvHandles);
+    std::array<D3D12_CPU_DESCRIPTOR_HANDLE, 2> dsvHandles = {
+      dsvPool.Allocate(), dsvPool.Allocate()
+    };
+    swapChainManager = std::make_unique<SwapChainManager<2>>(
+      device->Get(), *swapChain, rtvHandles, dsvHandles
+    );
 
     fence = std::make_unique<Fence>(device->Get());
   }
@@ -51,6 +56,17 @@ struct RenderContext {
 
     auto rtv = swapChainManager->CurrentRTV();
     cmdList.SetRenderTargets(1, &rtv);
+  }
+
+  void
+  PrepareSwapChainForRender(GraphicsCommandList& cmdList, D3D12_CPU_DESCRIPTOR_HANDLE dsv) const
+  {
+    cmdList.Transition(*swapChainManager->CurrentBuffer(), D3D12_RESOURCE_STATE_RENDER_TARGET);
+    cmdList.Transition(*swapChainManager->CurrentDepthBuffer(), D3D12_RESOURCE_STATE_DEPTH_WRITE);
+
+    auto rtv = swapChainManager->CurrentRTV();
+    cmdList.SetRenderTargets(1, &rtv, &dsv);
+    cmdList.ClearDSV(dsv, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0);
   }
 
   void PrepareSwapChainForPresent(GraphicsCommandList& cmdList) const

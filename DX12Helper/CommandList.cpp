@@ -102,9 +102,13 @@ void GraphicsCommandList::SetScissorRect(const SwapChain<2>& swapChain) const
   cmdList->RSSetScissorRects(1, &scissorRect);
 }
 
-void GraphicsCommandList::SetRenderTargets(UINT count, D3D12_CPU_DESCRIPTOR_HANDLE renderTargets[])
+void GraphicsCommandList::SetRenderTargets(
+  UINT count,
+  D3D12_CPU_DESCRIPTOR_HANDLE renderTargets[],
+  D3D12_CPU_DESCRIPTOR_HANDLE dsv[]
+)
 {
-  cmdList->OMSetRenderTargets(count, renderTargets, FALSE, nullptr);
+  cmdList->OMSetRenderTargets(count, renderTargets, FALSE, dsv);
 }
 
 void GraphicsCommandList::ClearRTV(
@@ -113,6 +117,16 @@ void GraphicsCommandList::ClearRTV(
 ) const
 {
   cmdList->ClearRenderTargetView(rtv, color.data(), 0, nullptr);
+}
+
+void GraphicsCommandList::ClearDSV(
+  D3D12_CPU_DESCRIPTOR_HANDLE dsv,
+  D3D12_CLEAR_FLAGS flags,
+  float depth,
+  UINT8 stencil
+) const
+{
+  cmdList->ClearDepthStencilView(dsv, flags, depth, stencil, 0, nullptr);
 }
 
 void GraphicsCommandList::SetVBV(D3D12_VERTEX_BUFFER_VIEW vbv)

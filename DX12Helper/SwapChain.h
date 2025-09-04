@@ -30,7 +30,7 @@ public:
       swapChainDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
       swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
       swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
-      swapChainDesc.SampleDesc.Count = 1;
+      swapChainDesc.SampleDesc = {1, 0};
       desc = swapChainDesc;
 
       Microsoft::WRL::ComPtr<IDXGISwapChain1> swapChain;
@@ -74,10 +74,12 @@ public:
   SwapChainManager(
     ID3D12Device* device,
     SwapChain<bufferCount>& swapChain,
-    std::array<D3D12_CPU_DESCRIPTOR_HANDLE, bufferCount> bufferRTVs
+    std::array<D3D12_CPU_DESCRIPTOR_HANDLE, bufferCount> bufferRTVs,
+    std::array<D3D12_CPU_DESCRIPTOR_HANDLE, bufferCount> bufferDSVs = {}
   )
       : swapChain{swapChain},
-        bufferRTVs{bufferRTVs}
+        bufferRTVs{bufferRTVs},
+        bufferDSVs{bufferDSVs}
   {
     for (size_t i = 0; i < bufferCount; ++i) {
       D3D12_RENDER_TARGET_VIEW_DESC desc{};
@@ -86,9 +88,34 @@ public:
       desc.Texture2D.MipSlice = 0;
       desc.Texture2D.PlaneSlice = 0;
       ID3D12Resource* buffer = swapChain.Buffer(i);
-      buffers[i] = std::make_unique<dxh::TrackedResource>(buffer, std::string("SwapChainBuffer") + std::to_string(i));
+      buffers[i] = std::make_unique<dxh::TrackedResource>(
+        buffer, D3D12_RESOURCE_STATE_COMMON, std::string("SwapChainBuffer") + std::to_string(i)
+      );
       if (buffer) {
         device->CreateRenderTargetView(buffer, &desc, bufferRTVs[i]);
+      }
+    }
+
+    for (size_t i = 0; i < bufferCount; ++i) {
+      {
+        auto clearValue = dxh::DefaultDepthStencilClearValue(depthBufferFormat);
+        depthBuffers[i] = std::make_unique<dxh::TrackedResource>(
+          device,
+          CD3DX12_RESOURCE_DESC::Tex2D(
+            depthBufferFormat, swapChain.Width(), swapChain.Height(), 1, 0, 1, 0,
+            D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL
+          ),
+          D3D12_RESOURCE_STATE_DEPTH_WRITE, &clearValue, D3D12_HEAP_TYPE_DEFAULT
+        );
+        depthBuffers[i]->Rename(std::string("SwapChainDepthBuffer") + std::to_string(i));
+      }
+      {
+        D3D12_DEPTH_STENCIL_VIEW_DESC desc{};
+        desc.Format = depthBufferFormat;
+        desc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
+        desc.Flags = D3D12_DSV_FLAG_NONE;
+        desc.Texture2D.MipSlice = 0;
+        device->CreateDepthStencilView(depthBuffers[i]->Resource(), &desc, bufferDSVs[i]);
       }
     }
   }
@@ -98,17 +125,33 @@ public:
     return bufferRTVs[swapChain.CurrentBackBufferIndex()];
   }
 
+  D3D12_CPU_DESCRIPTOR_HANDLE CurrentDSV()
+  {
+    return bufferDSVs[swapChain.CurrentBackBufferIndex()];
+  }
+
   dxh::TrackedResource* CurrentBuffer()
   {
     return buffers[swapChain.CurrentBackBufferIndex()].get();
   }
 
+  dxh::TrackedResource* CurrentDepthBuffer()
+  {
+    return depthBuffers[swapChain.CurrentBackBufferIndex()].get();
+  }
+
   void Present() { ThrowIfFailed(swapChain.Get()->Present(1, 0)); }
+
+  DXGI_FORMAT DepthBufferFormat() const { return depthBufferFormat; }
 
 private:
   SwapChain<bufferCount>& swapChain;
   std::array<std::unique_ptr<dxh::TrackedResource>, bufferCount> buffers{};
   std::array<D3D12_CPU_DESCRIPTOR_HANDLE, bufferCount> bufferRTVs;
+
+  std::array<std::unique_ptr<dxh::TrackedResource>, bufferCount> depthBuffers{};
+  std::array<D3D12_CPU_DESCRIPTOR_HANDLE, bufferCount> bufferDSVs;
+  DXGI_FORMAT depthBufferFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
 };
 
 template<size_t n>

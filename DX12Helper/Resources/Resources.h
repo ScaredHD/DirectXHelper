@@ -53,10 +53,13 @@ public:
     DX::ThrowIfFailed(device->CreateCommittedResource(
       &heapProp, heapFlags, &desc, state, clearValue, IID_PPV_ARGS(resource.GetAddressOf())
     ));
+
+    tracker.RecordTransition(state);
   };
 
   explicit TrackedResource(
     const Microsoft::WRL::ComPtr<ID3D12Resource>& resource,
+    D3D12_RESOURCE_STATES currentState,
     const std::string& name = "UnnamedResource"
   )
   {
@@ -65,6 +68,7 @@ public:
     D3D12_HEAP_PROPERTIES heapProps;
     resource->GetHeapProperties(&heapProps, &heapFlags);
     heapType = heapProps.Type;
+    tracker.RecordTransition(currentState);
     Rename(name);
   }
 
@@ -91,13 +95,16 @@ public:
   virtual bool
   ValidateTransition(D3D12_RESOURCE_STATES stateBefore, D3D12_RESOURCE_STATES stateAfter) const
   {
-    return stateBefore != stateAfter;
+    return true;
   }
 
   bool MakeValidatedTransition(ID3D12GraphicsCommandList* cmdList, D3D12_RESOURCE_STATES newState)
   {
+    if (tracker.state == newState) {
+      return true;  // No transition needed
+    }
     if (!ValidateTransition(tracker.state, newState)) {
-      return false;  // No transition needed
+      return false;
     }
     {
       auto t = CD3DX12_RESOURCE_BARRIER::Transition(resource.Get(), tracker.state, newState);

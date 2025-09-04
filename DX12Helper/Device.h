@@ -22,6 +22,7 @@ public:
   void CreateCBV(const dxh::Buffer& buffer, D3D12_CPU_DESCRIPTOR_HANDLE handle);
   void CreateSRV(const dxh::Texture& texture, D3D12_CPU_DESCRIPTOR_HANDLE handle);
   void CreateUAV(const dxh::Texture& texture, D3D12_CPU_DESCRIPTOR_HANDLE handle);
+  void CreateDSV(const dxh::Texture& texture, D3D12_CPU_DESCRIPTOR_HANDLE handle);
   
 
 private:
