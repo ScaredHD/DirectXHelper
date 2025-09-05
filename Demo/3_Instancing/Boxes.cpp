@@ -1,3 +1,7 @@
+#include <iomanip>
+#include <sstream>
+
+#include "AutoTimer.h"
 #include "Camera.h"
 #include "CommandAllocator.h"
 #include "CommandList.h"
@@ -17,6 +21,7 @@
 #include "Textures.h"
 #include "Timer.h"
 
+
 using namespace DirectX;
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
@@ -32,6 +37,8 @@ struct ConstantBufferData {
 };
 
 using Vertex = dxh::SimpleVertex;
+
+bool g_enableFrustumCulling = true;
 
 XMFLOAT3
 LightColor(float intensity = 1.0f, const XMFLOAT3& baseColor = {1.0f, 1.0f, 1.0f})
@@ -118,9 +125,6 @@ int WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow)
   rc.device->CreateCBV(constantBuffer, cbv);
 
   dxh::UploadHeapArray<InstanceData> instanceBuffer{rc.device->Get(), g_instanceCount};
-  for (size_t i = 0; i < g_instanceCount; ++i) {
-    instanceBuffer.LoadElement(i, g_instanceBuffer[i]);
-  }
   auto instanceSRV = rc.cbvSrvUavPool.Allocate();
   rc.device->CreateSRV(instanceBuffer, instanceSRV);
 
@@ -168,6 +172,10 @@ int WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow)
   dxh::Timer timer;
   timer.Start("main");
 
+  long long lastTimeStamp = 0;
+  float statPeriodMs = 500.f;  // stat update period in ms
+  size_t accumulatedFrames = 0;
+
   bool isRunning = true;
   while (isRunning) {
     MSG msg;
@@ -182,6 +190,11 @@ int WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow)
 
     long long time = timer.TimeElapsed("main");
     float timeSec = static_cast<float>(time) / 1000.0f;
+    ++accumulatedFrames;
+
+    auto elapsedSinceLastStampMs = static_cast<float>(time - lastTimeStamp);
+    float elapsedSinceLastStampSec = elapsedSinceLastStampMs / 1000.0f;
+
 
     cam.position = CameraPosition(timeSec, 0.1f);
     cam.lookAt = {0.0f, 0.0f, 0.0f};
@@ -197,9 +210,37 @@ int WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow)
     constantBuffer.LoadElement(0, cb);
 
     UpdateInstancePosition(cb.time);
-    for (size_t i = 0; i < g_instanceCount; ++i) {
-      instanceBuffer.LoadElement(i, g_instanceBuffer[i]);
+    long long cullTime = 0;
+    if (g_enableFrustumCulling) {
+      DXH_SCOPED_AUTO_TIMER_OUT_RESULT(cullTime, dxh::Millisecond)
+      CullInstances(cam);
     }
+
+    size_t instanceDrawCount = g_enableFrustumCulling ? g_cullCounter : g_instanceCount;
+
+
+    for (size_t i = 0; i < instanceDrawCount; ++i) {
+      instanceBuffer.LoadElement(
+        i, g_instanceBuffer[g_enableFrustumCulling ? g_culledInstanceIndices[i] : i]
+      );
+    }
+
+    if (elapsedSinceLastStampMs >= statPeriodMs) {
+      // update fps every second
+      float fps = static_cast<float>(accumulatedFrames) / elapsedSinceLastStampSec;
+      std::ostringstream oss;
+      oss << "DX12 Instancing Demo";
+      oss << " | ";
+      oss << "FPS: " << std::fixed << std::setprecision(2) << fps;
+      oss << " | ";
+      oss << "Instances drawed: " << instanceDrawCount << "/" << g_instanceCount;
+      oss << " | ";
+      oss << "Culling time: " << cullTime << " ms";
+      SetWindowText(hwnd, oss.str().c_str());
+      accumulatedFrames = 0;
+      lastTimeStamp = time;
+    }
+
 
     cmdAlloc.Reset();
     cmdList.Reset(cmdAlloc);
@@ -218,7 +259,8 @@ int WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow)
     rc.ClearBackBuffer(cmdList, {0.2f, 0.3f, 0.3f, 1.0f});
 
     cmdList.SetTriangleMeshToDraw(boxMesh);
-    cmdList.Get()->DrawIndexedInstanced(boxMeshData.IndexCount(), g_instanceCount, 0, 0, 0);
+
+    cmdList.Get()->DrawIndexedInstanced(boxMeshData.IndexCount(), instanceDrawCount, 0, 0, 0);
 
     rc.PrepareSwapChainForPresent(cmdList);
     rc.CloseAndExecute(cmdList);
@@ -231,6 +273,11 @@ int WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow)
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
   switch (uMsg) {
+    case WM_KEYDOWN:
+      if (wParam == 'C') {
+        g_enableFrustumCulling = !g_enableFrustumCulling;
+      }
+      return 0;
     case WM_DESTROY:
       PostQuitMessage(0);
       return 0;

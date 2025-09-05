@@ -1,9 +1,12 @@
 #include "Instances.h"
 
+#include <iomanip>
+
+#include "Culling.h"
+
 using namespace DirectX;
 
-
-size_t g_instanceCount = 1000;
+size_t g_instanceCount = 100000;
 
 int GridSize()
 {
@@ -138,5 +141,56 @@ void UpdateInstancePosition(float time)
 {
   for (size_t i = 0; i < g_instanceCount; ++i) {
     g_instanceBuffer[i].world = InstanceWorldMatrix(i, time);
+  }
+}
+
+std::vector<InstanceData> g_culledInstanceBuffer;
+std::vector<size_t> g_culledInstanceIndices(g_instanceCount);
+size_t g_cullCounter = 0;
+
+Frustum CameraFrustumNDC()
+{
+  static Frustum f;
+  f.planes[0] = {1, 0, 0, 1};   // left (1 x + 0 y + 0 z + 1 = 0) normal (1, 0, 0)
+  f.planes[1] = {-1, 0, 0, 1};  // right
+  f.planes[2] = {0, 1, 0, 1};   // bottom
+  f.planes[3] = {0, -1, 0, 1};  // top
+  f.planes[4] = {0, 0, 1, 0};   // near
+  f.planes[5] = {0, 0, -1, 1};  // far
+  return f;
+}
+
+void CullInstances(const dxh::PerspectiveCamera& cam)
+{
+  g_cullCounter = 0;
+
+  Frustum frustum = CameraFrustumNDC();
+  AABB instanceAABB = {{-0.5f, -0.5f, -0.5f}, {0.5f, 0.5f, 0.5f}};
+
+  XMFLOAT4X4 viewMatrix = cam.ViewMatrix();
+  XMMATRIX xmView = XMLoadFloat4x4(&viewMatrix);
+
+  XMFLOAT4X4 projMatrix = cam.ProjectionMatrix();
+  XMMATRIX xmProj = XMLoadFloat4x4(&projMatrix);
+
+  for (size_t i = 0; i < g_instanceCount; ++i) {
+    const InstanceData& instance = g_instanceBuffer[i];
+    XMMATRIX xmWorld = XMLoadFloat4x4(&instance.world);
+
+    XMMATRIX xmMVP = xmWorld * xmView * xmProj;
+    XMMATRIX xmInvMVP = XMMatrixInverse(nullptr, xmMVP);
+
+    bool culled = false;
+    for (auto plane : frustum.planes) {
+      Plane localPlane = TransformPlane(xmInvMVP, plane);
+      if (!IntersectAABBPlane(instanceAABB, localPlane)) {
+        culled = true;
+        break;
+      }
+    }
+
+    if (!culled) {
+      g_culledInstanceIndices[g_cullCounter++] = i;
+    }
   }
 }
