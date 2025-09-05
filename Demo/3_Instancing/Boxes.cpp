@@ -17,23 +17,47 @@
 #include "Textures.h"
 #include "Timer.h"
 
+using namespace DirectX;
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
 struct ConstantBufferData {
-  DirectX::XMFLOAT4X4 view;
-  DirectX::XMFLOAT4X4 projection;
+  XMFLOAT4X4 view;
+  XMFLOAT4X4 projection;
+  XMFLOAT3 lightColor;
   float time;
+  XMFLOAT3 lightDir;
+  float _padding1;  // HLSL is 16-byte aligned, so add explicit padding
+  XMFLOAT3 ambient;
 };
 
 using Vertex = dxh::SimpleVertex;
 
-DirectX::XMFLOAT3 CameraPosition(float time)
+XMFLOAT3
+LightColor(float intensity = 1.0f, const XMFLOAT3& baseColor = {1.0f, 1.0f, 1.0f})
 {
-  float radius = 10.0f;
-  float x = radius * cosf(time);
-  float z = radius * sinf(time);
-  return {x, 5.0f, z};
+  float r = baseColor.x * intensity;
+  float g = baseColor.y * intensity;
+  float b = baseColor.z * intensity;
+  return {r, g, b};
+}
+
+XMFLOAT3 g_ambientColor = {0.2f, 0.2f, 0.2f};
+
+XMFLOAT3 LightDirection(float time, float speed = 0.5f)
+{
+  float x = std::cosf(time * speed);
+  float z = std::sinf(time * speed);
+  return {x, 1.0f, z};
+}
+
+XMFLOAT3 CameraPosition(float time, float speed = 0.5f)
+{
+  float radius = 40.0f;
+  float height = 10.0f;
+  float x = radius * cosf(time * speed);
+  float z = radius * sinf(time * speed);
+  return {x, height, z};
 }
 
 int WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow)
@@ -78,7 +102,8 @@ int WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow)
 
   dxh::RenderContext rc{factory.Get(), hwnd, 800, 600};
 
-  dxh::TriangleMeshData<Vertex, uint16_t> boxMeshData = dxh::CreateUnitBox<Vertex, uint16_t>();
+  dxh::TriangleMeshData<Vertex, uint16_t> boxMeshData =
+    dxh::CreateUnitBoxWithNormal<Vertex, uint16_t>();
   dxh::TriangleMeshRenderResource<Vertex, uint16_t> boxMesh{rc.device->Get(), &boxMeshData};
 
   dxh::CommandAllocator cmdAlloc{rc.device->Get()};
@@ -156,16 +181,25 @@ int WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow)
     }
 
     long long time = timer.TimeElapsed("main");
+    float timeSec = static_cast<float>(time) / 1000.0f;
 
-    cam.position = CameraPosition(static_cast<float>(time) / 1000.0f);
+    cam.position = CameraPosition(timeSec, 0.1f);
     cam.lookAt = {0.0f, 0.0f, 0.0f};
     cam.up = {0.0f, 1.0f, 0.0f};
 
     ConstantBufferData cb;
     cb.view = cam.ViewMatrix();
     cb.projection = cam.ProjectionMatrix();
-    cb.time = static_cast<float>(time) / 1000.0f;
+    cb.time = timeSec;
+    cb.lightColor = LightColor(1.0f, {1.0f, 1.0f, 1.0f});
+    cb.lightDir = LightDirection(timeSec, 2.f);
+    cb.ambient = g_ambientColor;
     constantBuffer.LoadElement(0, cb);
+
+    UpdateInstancePosition(cb.time);
+    for (size_t i = 0; i < g_instanceCount; ++i) {
+      instanceBuffer.LoadElement(i, g_instanceBuffer[i]);
+    }
 
     cmdAlloc.Reset();
     cmdList.Reset(cmdAlloc);

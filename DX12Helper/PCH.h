@@ -9,6 +9,7 @@
 #include <numeric>
 #include <stdexcept>
 #include <vector>
+#include <iostream>
 
 
 // ---

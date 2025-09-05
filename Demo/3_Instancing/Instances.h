@@ -4,10 +4,11 @@
 
 struct InstanceData {
   DirectX::XMFLOAT4X4 world;
-  DirectX::XMFLOAT4 color;
+  DirectX::XMFLOAT4X4 invWorld;
+  DirectX::XMFLOAT4 albedo;
 };
 
 extern size_t g_instanceCount;
 extern std::vector<InstanceData> g_instanceBuffer;
 
-// std::vector<InstanceData> GetInstanceData();
+void UpdateInstancePosition(float time);

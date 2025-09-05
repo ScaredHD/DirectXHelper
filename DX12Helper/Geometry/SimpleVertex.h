@@ -14,7 +14,8 @@ struct SimpleVertex {
   using RGBA8UINT = std::array<uint8_t, 4>;
   DECLARE_VERTEX_PROPERTY(DirectX::XMFLOAT3, position)
   DECLARE_VERTEX_PROPERTY(RGBA8UINT, color)
-  static constexpr UINT inputLayoutCount = 2;
+  DECLARE_VERTEX_PROPERTY(DirectX::XMFLOAT3, normal)
+  static constexpr UINT inputLayoutCount = 3;
   static D3D12_INPUT_ELEMENT_DESC inputLayout[inputLayoutCount];
 };
 
