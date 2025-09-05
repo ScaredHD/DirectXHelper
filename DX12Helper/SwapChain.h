@@ -61,6 +61,11 @@ public:
 
   DXGI_FORMAT Format() const { return desc.Format; }
 
+  void Present(UINT syncInterval = 0, UINT flags = 0)
+  {
+    ThrowIfFailed(swapChain->Present(syncInterval, flags));
+  }
+
 private:
   Microsoft::WRL::ComPtr<IDXGISwapChain4> swapChain;
   DXGI_SWAP_CHAIN_DESC1 desc;
@@ -140,7 +145,7 @@ public:
     return depthBuffers[swapChain.CurrentBackBufferIndex()].get();
   }
 
-  void Present() { ThrowIfFailed(swapChain.Get()->Present(1, 0)); }
+  void Present() { swapChain.Present(); }
 
   DXGI_FORMAT DepthBufferFormat() const { return depthBufferFormat; }
 
