@@ -41,6 +41,7 @@ target_precompile_headers(
 
 
 if (isTopLevelProject)
+    add_subdirectory(spdlog)
     include(Demo/Utils/DemoUtils.cmake)
     add_subdirectory(Demo/0_SolidColor)
     add_subdirectory(Demo/1_Triangle)
