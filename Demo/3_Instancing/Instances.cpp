@@ -5,24 +5,28 @@ using namespace DirectX;
 
 size_t g_instanceCount = 1000;
 
-float GridSize()
+int GridSize()
 {
-  return 2.5f * std::sqrt(static_cast<float>(g_instanceCount));
+  return static_cast<int>(std::sqrt(g_instanceCount));
 }
 
-float g_fieldSize = GridSize();
-float g_waveFreq = 2.f;
+float FieldSize()
+{
+  return 2.5f * static_cast<float>(GridSize());
+}
+
+float g_waveFreq = 0.5f;
 float g_rotSpeed = 100.f;
 float g_yOffsetAmplitude = 3.f;
 
 int GridRowCount()
 {
-  return static_cast<int>(std::ceilf(std::sqrt(static_cast<float>(g_instanceCount))));
+  return static_cast<int>(std::ceill(std::sqrt(g_instanceCount)));
 }
 
 int GridColCount()
 {
-  return static_cast<int>(std::sqrt(g_instanceCount));
+  return GridSize();
 }
 
 using CoordI = std::pair<int, int>;
@@ -30,7 +34,7 @@ using CoordF = std::pair<float, float>;
 
 std::pair<int, int> GridCoord(size_t index)
 {
-  int gridSize = static_cast<int>(std::sqrt(g_instanceCount));
+  int gridSize = GridSize();
   int row = static_cast<int>(index) / gridSize;
   int col = static_cast<int>(index) % gridSize;
   return {row, col};
@@ -57,15 +61,16 @@ std::pair<float, float> GridCoordSNorm(std::pair<int, int> coord)
 XMFLOAT3 InstanceBasePosition(size_t index)
 {
   auto [u, v] = GridCoordSNorm(GridCoord(index));
-  auto x = u * g_fieldSize * 0.5f;
-  auto z = v * g_fieldSize * 0.5f;
+  auto x = u * FieldSize() * 0.5f;
+  auto z = v * FieldSize() * 0.5f;
   return {x, 0.0f, z};
 }
 
 float InstanceYOffset(size_t index, float time)
 {
-  auto [u, v] = GridCoordSNorm(GridCoord(index));
-  return g_yOffsetAmplitude * std::sinf(g_waveFreq * (u + time)) * std::cosf(g_waveFreq * (v + time));
+  auto [r, c] = GridCoord(index);
+  return g_yOffsetAmplitude * std::sinf(g_waveFreq * (static_cast<float>(r) + time)) *
+         std::cosf(g_waveFreq * (static_cast<float>(c) + time));
 }
 
 XMFLOAT3 RotationAxis(CoordF coordSNorm)
