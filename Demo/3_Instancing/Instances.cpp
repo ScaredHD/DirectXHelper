@@ -96,10 +96,16 @@ XMMATRIX InstanceRotationMatrix(size_t index, float time = 0.f)
   return rotMat;
 }
 
-XMFLOAT4X4 InstanceWorldMatrix(size_t index, float time = 0.f)
+XMFLOAT3 InstanceWorldPosition(size_t index, float time = 0.f)
 {
   auto pos = InstanceBasePosition(index);
   pos.y += InstanceYOffset(index, time);
+  return pos;
+}
+
+XMFLOAT4X4 InstanceWorldMatrix(size_t index, float time = 0.f)
+{
+  auto pos = InstanceWorldPosition(index, time);
   XMMATRIX t = XMMatrixTranslation(pos.x, pos.y, pos.z);
   XMMATRIX r = InstanceRotationMatrix(index, time);
   XMMATRIX world = r * t;
@@ -125,7 +131,7 @@ InstanceData GetInstance(size_t index, float time = 0.f)
   return instance;
 }
 
-std::vector<InstanceData> GetInstanceData(float time = 0.f)
+std::vector<InstanceData> InitInstanceData(float time = 0.f)
 {
   std::vector<InstanceData> instances;
   instances.reserve(g_instanceCount);
@@ -135,16 +141,26 @@ std::vector<InstanceData> GetInstanceData(float time = 0.f)
   return instances;
 }
 
-std::vector<InstanceData> g_instanceBuffer = GetInstanceData();
+std::vector<InstanceData> g_instanceBuffer = InitInstanceData();
+std::vector<InstanceSceneInfo> g_instanceSceneInfo(g_instanceCount);
 
-void UpdateInstancePosition(float time)
+void UpdateInstances(float time)
 {
   for (size_t i = 0; i < g_instanceCount; ++i) {
-    g_instanceBuffer[i].world = InstanceWorldMatrix(i, time);
+    const XMFLOAT4X4& world = InstanceWorldMatrix(i, time);
+    g_instanceBuffer[i].world = world;
+
+    const XMMATRIX& xmInvWorld = XMMatrixInverse(nullptr, XMLoadFloat4x4(&world));
+    XMStoreFloat4x4(&g_instanceBuffer[i].invWorld, xmInvWorld);
+
+    g_instanceSceneInfo[i].worldPosition = InstanceWorldPosition(i, time);
+    XMMATRIX xmWorld = XMLoadFloat4x4(&world);
+    const auto& localAABB = AABB{{-0.5f, -0.5f, -0.5f}, {0.5f, 0.5f, 0.5f}};
+    g_instanceSceneInfo[i].worldAABB = TransformAABB(xmWorld, localAABB);
   }
 }
 
-std::vector<InstanceData> g_culledInstanceBuffer;
+
 std::vector<size_t> g_culledInstanceIndices(g_instanceCount);
 size_t g_cullCounter = 0;
 
@@ -200,7 +216,6 @@ void CullInstancesWorldSpace(const dxh::PerspectiveCamera& cam)
   g_cullCounter = 0;
 
   Frustum frustum = CameraFrustumNDC();
-  AABB instanceAABB = {{-0.5f, -0.5f, -0.5f}, {0.5f, 0.5f, 0.5f}};
 
   XMFLOAT4X4 viewMatrix = cam.ViewMatrix();
   XMMATRIX xmView = XMLoadFloat4x4(&viewMatrix);
@@ -217,9 +232,7 @@ void CullInstancesWorldSpace(const dxh::PerspectiveCamera& cam)
   }
 
   for (size_t i = 0; i < g_instanceCount; ++i) {
-    const InstanceData& instance = g_instanceBuffer[i];
-    XMMATRIX xmWorld = XMLoadFloat4x4(&instance.world);
-    AABB worldAABB = TransformAABB(xmWorld, instanceAABB);
+    const AABB& worldAABB = g_instanceSceneInfo[i].worldAABB;
 
     bool culled = false;
     for (auto worldPlane : worldFrustum.planes) {

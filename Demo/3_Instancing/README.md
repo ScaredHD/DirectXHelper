@@ -28,11 +28,11 @@ Test on 13700K(F).
 - Test intersection in world space
 
 - Time to cull (1M boxes)
-  - -O0: 105ms
-  - -O3: 11ms
+  - -O0: 
+  - -O3: 
 
 ### Method 3 (Octree)
 
 - Single threaded
 - Cull in world space
-- Use octree to accelerate intersection testing
+- Accelerate intersection testing with octree

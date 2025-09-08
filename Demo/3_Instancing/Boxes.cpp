@@ -209,7 +209,8 @@ int WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow)
     cb.ambient = g_ambientColor;
     constantBuffer.LoadElement(0, cb);
 
-    UpdateInstancePosition(cb.time);
+    UpdateInstances(cb.time);
+
     long long cullTime = 0;
     if (g_enableFrustumCulling) {
       DXH_SCOPED_AUTO_TIMER_OUT_RESULT(cullTime, dxh::Microseconds)
