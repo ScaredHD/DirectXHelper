@@ -6,7 +6,7 @@
 
 using namespace DirectX;
 
-size_t g_instanceCount = 100000;
+size_t g_instanceCount = 1'000'000;
 
 int GridSize()
 {
@@ -160,7 +160,7 @@ Frustum CameraFrustumNDC()
   return f;
 }
 
-void CullInstances(const dxh::PerspectiveCamera& cam)
+void CullInstancesLocalSpace(const dxh::PerspectiveCamera& cam)
 {
   g_cullCounter = 0;
 
@@ -192,5 +192,59 @@ void CullInstances(const dxh::PerspectiveCamera& cam)
     if (!culled) {
       g_culledInstanceIndices[g_cullCounter++] = i;
     }
+  }
+}
+
+void CullInstancesWorldSpace(const dxh::PerspectiveCamera& cam)
+{
+  g_cullCounter = 0;
+
+  Frustum frustum = CameraFrustumNDC();
+  AABB instanceAABB = {{-0.5f, -0.5f, -0.5f}, {0.5f, 0.5f, 0.5f}};
+
+  XMFLOAT4X4 viewMatrix = cam.ViewMatrix();
+  XMMATRIX xmView = XMLoadFloat4x4(&viewMatrix);
+
+  XMFLOAT4X4 projMatrix = cam.ProjectionMatrix();
+  XMMATRIX xmProj = XMLoadFloat4x4(&projMatrix);
+
+  Frustum worldFrustum;
+  {
+    XMMATRIX xmInvVP = XMMatrixInverse(nullptr, xmView * xmProj);
+    for (int i = 0; i < 6; ++i) {
+      worldFrustum.planes[i] = TransformPlane(xmInvVP, frustum.planes[i]);
+    }
+  }
+
+  for (size_t i = 0; i < g_instanceCount; ++i) {
+    const InstanceData& instance = g_instanceBuffer[i];
+    XMMATRIX xmWorld = XMLoadFloat4x4(&instance.world);
+    AABB worldAABB = TransformAABB(xmWorld, instanceAABB);
+
+    bool culled = false;
+    for (auto worldPlane : worldFrustum.planes) {
+      if (!IntersectAABBPlane(worldAABB, worldPlane)) {
+        culled = true;
+        break;
+      }
+    }
+
+    if (!culled) {
+      g_culledInstanceIndices[g_cullCounter++] = i;
+    }
+  }
+}
+
+void CullInstances(const dxh::PerspectiveCamera& cam, FrustumCullingSpace space)
+{
+  switch (space) {
+    case FrustumCullingSpace::Local:
+      CullInstancesLocalSpace(cam);
+      break;
+    case FrustumCullingSpace::World:
+      CullInstancesWorldSpace(cam);
+      break;
+    default:
+      break;
   }
 }

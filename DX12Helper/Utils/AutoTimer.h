@@ -32,8 +32,10 @@ namespace dxh
 {
 
 using Minutes = std::chrono::minutes;
-using Millisecond = std::chrono::milliseconds;
-using Second = std::chrono::seconds;
+using Milliseconds = std::chrono::milliseconds;
+using Seconds = std::chrono::seconds;
+using Nanoseconds = std::chrono::nanoseconds;
+using Microseconds = std::chrono::microseconds;
 
 template<typename Duration>
 std::string ToString(Duration duration)

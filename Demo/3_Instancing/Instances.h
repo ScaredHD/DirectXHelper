@@ -18,4 +18,6 @@ extern size_t g_cullCounter;
 
 void UpdateInstancePosition(float time);
 
-void CullInstances(const dxh::PerspectiveCamera& cam);
+enum class FrustumCullingSpace : uint8_t { None, Local, World };
+
+void CullInstances(const dxh::PerspectiveCamera& cam, FrustumCullingSpace space);

@@ -212,12 +212,11 @@ int WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow)
     UpdateInstancePosition(cb.time);
     long long cullTime = 0;
     if (g_enableFrustumCulling) {
-      DXH_SCOPED_AUTO_TIMER_OUT_RESULT(cullTime, dxh::Millisecond)
-      CullInstances(cam);
+      DXH_SCOPED_AUTO_TIMER_OUT_RESULT(cullTime, dxh::Microseconds)
+      CullInstances(cam, FrustumCullingSpace::World);
     }
 
     size_t instanceDrawCount = g_enableFrustumCulling ? g_cullCounter : g_instanceCount;
-
 
     for (size_t i = 0; i < instanceDrawCount; ++i) {
       instanceBuffer.LoadElement(
@@ -235,7 +234,8 @@ int WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow)
       oss << " | ";
       oss << "Instances drawed: " << instanceDrawCount << "/" << g_instanceCount;
       oss << " | ";
-      oss << "Culling time: " << cullTime << " ms";
+      oss << "Culling time: " << std::setprecision(3) << static_cast<float>(cullTime) / 1000.f
+          << " ms";
       SetWindowText(hwnd, oss.str().c_str());
       accumulatedFrames = 0;
       lastTimeStamp = time;

@@ -7,6 +7,8 @@ struct AABB {
   DirectX::XMFLOAT3 max;
 };
 
+AABB TransformAABB(const DirectX::XMMATRIX& mat, const AABB& box);
+
 struct Plane {
   float a;
   float b;
