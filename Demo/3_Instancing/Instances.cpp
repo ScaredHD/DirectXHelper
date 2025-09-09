@@ -2,7 +2,14 @@
 
 #include <iomanip>
 
+#include "AutoTimer.h"
 #include "Culling.h"
+#include "Octree.h"
+#include "spdlog/sinks/basic_file_sink.h"
+#include "spdlog/spdlog.h"
+
+
+auto g_logger = spdlog::basic_logger_mt("basic_logger", "instances.log", true);
 
 using namespace DirectX;
 
@@ -144,6 +151,24 @@ std::vector<InstanceData> InitInstanceData(float time = 0.f)
 std::vector<InstanceData> g_instanceBuffer = InitInstanceData();
 std::vector<InstanceSceneInfo> g_instanceSceneInfo(g_instanceCount);
 
+std::unique_ptr<OctreeNode<InstanceSceneInfo>> g_sceneOctree;
+
+void RebuildSceneOctree()
+{
+  // Clear existing octree node pointers
+
+  for (size_t i = 0; i < g_instanceCount; ++i) {
+    g_instanceSceneInfo[i].octreeNode = nullptr;
+    g_instanceSceneInfo[i].indexInNode = 0;
+  }
+
+  float fieldSize = FieldSize();
+  float halfSize = fieldSize * 0.5f + 5.f;  // add some margin
+  float sceneHeight = 2.f * g_yOffsetAmplitude + 5.f;
+  AABB sceneBox = {{-halfSize, -sceneHeight, -halfSize}, {halfSize, sceneHeight, halfSize}};
+  g_sceneOctree = BuildSceneOctreeFromAABB(sceneBox, g_instanceSceneInfo);
+}
+
 void UpdateInstances(float time)
 {
   for (size_t i = 0; i < g_instanceCount; ++i) {
@@ -157,12 +182,19 @@ void UpdateInstances(float time)
     XMMATRIX xmWorld = XMLoadFloat4x4(&world);
     const auto& localAABB = AABB{{-0.5f, -0.5f, -0.5f}, {0.5f, 0.5f, 0.5f}};
     g_instanceSceneInfo[i].worldAABB = TransformAABB(xmWorld, localAABB);
+    g_instanceSceneInfo[i].instanceIndex = i;
   }
 }
 
+std::vector<size_t> g_initInstanceIndices = []() {
+  std::vector<size_t> indices(g_instanceCount);
+  for (size_t i = 0; i < g_instanceCount; ++i) {
+    indices[i] = i;
+  }
+  return indices;
+}();
 
-std::vector<size_t> g_culledInstanceIndices(g_instanceCount);
-size_t g_cullCounter = 0;
+std::vector<size_t> g_culledInstanceIndices;
 
 Frustum CameraFrustumNDC()
 {
@@ -176,9 +208,29 @@ Frustum CameraFrustumNDC()
   return f;
 }
 
+Frustum WorldSpaceFrustum(const dxh::PerspectiveCamera& cam)
+{
+  Frustum frustum = CameraFrustumNDC();
+
+  XMFLOAT4X4 viewMatrix = cam.ViewMatrix();
+  XMMATRIX xmView = XMLoadFloat4x4(&viewMatrix);
+
+  XMFLOAT4X4 projMatrix = cam.ProjectionMatrix();
+  XMMATRIX xmProj = XMLoadFloat4x4(&projMatrix);
+
+  Frustum worldFrustum;
+  {
+    XMMATRIX xmInvVP = XMMatrixInverse(nullptr, xmView * xmProj);
+    for (int i = 0; i < 6; ++i) {
+      worldFrustum.planes[i] = TransformPlane(xmInvVP, frustum.planes[i]);
+    }
+  }
+  return worldFrustum;
+}
+
 void CullInstancesLocalSpace(const dxh::PerspectiveCamera& cam)
 {
-  g_cullCounter = 0;
+  std::vector<size_t> culledIndices;
 
   Frustum frustum = CameraFrustumNDC();
   AABB instanceAABB = {{-0.5f, -0.5f, -0.5f}, {0.5f, 0.5f, 0.5f}};
@@ -189,7 +241,7 @@ void CullInstancesLocalSpace(const dxh::PerspectiveCamera& cam)
   XMFLOAT4X4 projMatrix = cam.ProjectionMatrix();
   XMMATRIX xmProj = XMLoadFloat4x4(&projMatrix);
 
-  for (size_t i = 0; i < g_instanceCount; ++i) {
+  for (size_t i : g_culledInstanceIndices) {
     const InstanceData& instance = g_instanceBuffer[i];
     XMMATRIX xmWorld = XMLoadFloat4x4(&instance.world);
 
@@ -206,50 +258,110 @@ void CullInstancesLocalSpace(const dxh::PerspectiveCamera& cam)
     }
 
     if (!culled) {
-      g_culledInstanceIndices[g_cullCounter++] = i;
+      culledIndices.push_back(i);
     }
   }
+
+  g_culledInstanceIndices = culledIndices;
 }
 
 void CullInstancesWorldSpace(const dxh::PerspectiveCamera& cam)
 {
-  g_cullCounter = 0;
+  std::vector<size_t> culledIndices;
+  Frustum worldFrustum = WorldSpaceFrustum(cam);
 
-  Frustum frustum = CameraFrustumNDC();
-
-  XMFLOAT4X4 viewMatrix = cam.ViewMatrix();
-  XMMATRIX xmView = XMLoadFloat4x4(&viewMatrix);
-
-  XMFLOAT4X4 projMatrix = cam.ProjectionMatrix();
-  XMMATRIX xmProj = XMLoadFloat4x4(&projMatrix);
-
-  Frustum worldFrustum;
-  {
-    XMMATRIX xmInvVP = XMMatrixInverse(nullptr, xmView * xmProj);
-    for (int i = 0; i < 6; ++i) {
-      worldFrustum.planes[i] = TransformPlane(xmInvVP, frustum.planes[i]);
+  for (size_t i : g_culledInstanceIndices) {
+    const AABB& worldAABB = g_instanceSceneInfo[i].worldAABB;
+    if (worldAABB.Intersect(worldFrustum)) {
+      culledIndices.push_back(i);
     }
   }
 
-  for (size_t i = 0; i < g_instanceCount; ++i) {
-    const AABB& worldAABB = g_instanceSceneInfo[i].worldAABB;
+  g_culledInstanceIndices = culledIndices;
+}
 
-    bool culled = false;
-    for (auto worldPlane : worldFrustum.planes) {
-      if (!IntersectAABBPlane(worldAABB, worldPlane)) {
-        culled = true;
-        break;
-      }
-    }
+void CullOctreeNodesImpl(
+  const dxh::PerspectiveCamera& cam,
+  const OctreeNode<InstanceSceneInfo>* node,
+  const Frustum& worldFrustum,
+  std::vector<size_t>& outCulledIndices
+)
+{
+  if (!node->bbox.Intersect(worldFrustum)) {
+    return;
+  }
 
-    if (!culled) {
-      g_culledInstanceIndices[g_cullCounter++] = i;
+  if (node->IsLeaf()) {
+    for (const auto* obj : node->objects) {
+      outCulledIndices.push_back(obj->instanceIndex);
     }
+    return;
+  }
+
+  for (const InstanceSceneInfo* obj : node->objects) {
+    outCulledIndices.push_back(obj->instanceIndex);
+  }
+
+  for (const auto* child : node->children) {
+    assert(child);
+    CullOctreeNodesImpl(cam, child, worldFrustum, outCulledIndices);
   }
 }
 
-void CullInstances(const dxh::PerspectiveCamera& cam, FrustumCullingSpace space)
+void CullOctreeNodes(const dxh::PerspectiveCamera& cam, const OctreeNode<InstanceSceneInfo>* node)
 {
+  std::vector<size_t> culledIndices;
+  culledIndices.reserve(g_instanceCount);
+  Frustum worldFrustum = WorldSpaceFrustum(cam);
+  CullOctreeNodesImpl(cam, node, worldFrustum, culledIndices);
+  g_culledInstanceIndices = culledIndices;
+}
+
+bool g_octreeBuilt = false;
+
+#define LOG_OCTREE
+
+void CullInstances(
+  const dxh::PerspectiveCamera& cam,
+  FrustumCullingSpace space,
+  CullingAcceleration acceleration
+)
+{
+  g_culledInstanceIndices = g_initInstanceIndices;
+
+#if defined(LOG_OCTREE)
+  g_logger->info("Culling instances...");
+#endif
+
+  if (acceleration == CullingAcceleration::StaticOctree ||
+      acceleration == CullingAcceleration::DynamicOctree) {
+    float octreeBuildTime = 0;
+    float octreeCullTime = 0;
+    bool isDynamic = acceleration == CullingAcceleration::DynamicOctree;
+    {
+      DXH_SCOPED_AUTO_TIMER_OUT_RESULT(octreeBuildTime, dxh::Microseconds);
+      if (!g_octreeBuilt) {
+        RebuildSceneOctree();
+        g_octreeBuilt = true;
+      } else {
+        if (isDynamic) {
+          for (size_t i = 0; i < g_instanceCount; ++i) {
+            UpdateOctreeObject(*g_sceneOctree, g_instanceSceneInfo[i]);
+          }
+        }
+      }
+    }
+    {
+      DXH_SCOPED_AUTO_TIMER_OUT_RESULT(octreeCullTime, dxh::Microseconds);
+      CullOctreeNodes(cam, g_sceneOctree.get());
+    }
+#if defined(LOG_OCTREE)
+    g_logger->info("  Octree build/update time: {} ms", octreeBuildTime / 1000.f);
+    g_logger->info("  Octree culling time: {} ms", octreeCullTime / 1000.f);
+    g_logger->info("  Instances left: {}", g_culledInstanceIndices.size());
+#endif
+  }
+
   switch (space) {
     case FrustumCullingSpace::Local:
       CullInstancesLocalSpace(cam);
@@ -260,4 +372,9 @@ void CullInstances(const dxh::PerspectiveCamera& cam, FrustumCullingSpace space)
     default:
       break;
   }
+
+#if defined(LOG_OCTREE)
+  g_logger->info("Final instances after culling: {}", g_culledInstanceIndices.size());
+  g_logger->info("Culling done.\n");
+#endif
 }

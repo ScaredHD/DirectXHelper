@@ -29,7 +29,7 @@ struct TimeTrack {
     }
 
     isRunning = false;
-    timeElapsedBeforeLastPause += Clock::now() - lastStart;
+    timeElapsedBeforeLastPause += std::chrono::duration_cast<Duration>(Clock::now() - lastStart);
   }
 
   typename Clock::time_point lastStart = Clock::now();

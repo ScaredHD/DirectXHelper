@@ -2,13 +2,6 @@
 
 #include <DirectXMath.h>
 
-struct AABB {
-  DirectX::XMFLOAT3 min;
-  DirectX::XMFLOAT3 max;
-};
-
-AABB TransformAABB(const DirectX::XMMATRIX& mat, const AABB& box);
-
 struct Plane {
   float a;
   float b;
@@ -25,6 +18,23 @@ struct Plane {
 struct Frustum {
   Plane planes[6];
 };
+
+struct AABB {
+  DirectX::XMFLOAT3 min = {0.f , 0.f, 0.f};
+  DirectX::XMFLOAT3 max = {0.f , 0.f, 0.f};
+
+  bool IsValid() const { return min.x <= max.x && min.y <= max.y && min.z <= max.z; }
+
+  bool Contains(const DirectX::XMFLOAT3& point) const;
+  bool Contains(const AABB& box) const;
+  bool Intersect(const Plane& plane) const;
+  bool Intersect(const Frustum& frustum) const;
+};
+
+
+void GetAABBPoints(const AABB& box, DirectX::XMVECTOR points[8]);
+
+AABB TransformAABB(const DirectX::XMMATRIX& mat, const AABB& box);
 
 bool IntersectAABBPlane(const AABB& box, const Plane& plane);
 

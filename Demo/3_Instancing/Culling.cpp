@@ -4,7 +4,7 @@ using namespace DirectX;
 
 #include <cmath>
 
-void GetLocalAABBPoints(const AABB& box, XMVECTOR points[8])
+void GetAABBPoints(const AABB& box, XMVECTOR points[8])
 {
   points[0] = XMVectorSet(box.min.x, box.min.y, box.min.z, 1.0f);
   points[1] = XMVectorSet(box.min.x, box.min.y, box.max.z, 1.0f);
@@ -19,7 +19,7 @@ void GetLocalAABBPoints(const AABB& box, XMVECTOR points[8])
 AABB TransformAABB(const DirectX::XMMATRIX& mat, const AABB& box)
 {
   XMVECTOR xmP[8];
-  GetLocalAABBPoints(box, xmP);
+  GetAABBPoints(box, xmP);
 
   for (auto& point : xmP) {
     point = XMVector3Transform(point, mat);
@@ -40,6 +40,23 @@ AABB TransformAABB(const DirectX::XMMATRIX& mat, const AABB& box)
   return {pmin, pmax};
 }
 
+bool AABB::Contains(const AABB& box) const
+{
+  auto xmMin = XMLoadFloat3(&min);
+  auto xmMax = XMLoadFloat3(&max);
+  auto xmBoxMin = XMLoadFloat3(&box.min);
+  auto xmBoxMax = XMLoadFloat3(&box.max);
+  return XMVector3Less(xmMin, xmBoxMin) && XMVector3Less(xmBoxMax, xmMax);
+}
+
+bool AABB::Contains(const XMFLOAT3& point) const
+{
+  auto xmMin = XMLoadFloat3(&min);
+  auto xmMax = XMLoadFloat3(&max);
+  auto xmPoint = XMLoadFloat3(&point);
+  return XMVector3Less(xmMin, xmPoint) && XMVector3Less(xmPoint, xmMax);
+}
+
 bool IntersectAABBPlane(const AABB& box, const Plane& plane)
 {
   const auto& [a, b, c] = plane.Normal();
@@ -53,6 +70,22 @@ bool IntersectAABBPlane(const AABB& box, const Plane& plane)
 
   float sign = plane(g);
   return sign > 0;
+}
+
+
+bool AABB::Intersect(const Plane& plane) const
+{
+  return IntersectAABBPlane(*this, plane);
+}
+
+bool AABB::Intersect(const Frustum& frustum) const
+{
+  for (const auto& plane : frustum.planes) {
+    if (!IntersectAABBPlane(*this, plane)) {
+      return false;
+    }
+  }
+  return true;
 }
 
 Plane TransformPlane(const XMMATRIX& mat, const Plane& plane)

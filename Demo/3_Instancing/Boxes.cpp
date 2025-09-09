@@ -38,7 +38,28 @@ struct ConstantBufferData {
 
 using Vertex = dxh::SimpleVertex;
 
+int g_screenWidth = 800;
+int g_screenHeight = 600;
+
 bool g_enableFrustumCulling = true;
+bool g_enableOctreeCulling = true;
+bool g_tickInstances = true;
+
+std::string GetModeString()
+{
+  std::string res = g_enableFrustumCulling ? "Cull" : "NoCull";
+  res += ", ";
+  if (g_enableOctreeCulling) {
+    if (g_tickInstances) {
+      res += "DynamicOctree";
+    } else {
+      res += "StaticOctree";
+    }
+  } else {
+    res += "NoAcc";
+  }
+  return res;
+}
 
 XMFLOAT3
 LightColor(float intensity = 1.0f, const XMFLOAT3& baseColor = {1.0f, 1.0f, 1.0f})
@@ -86,8 +107,8 @@ int WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow)
   };
   RegisterClassEx(&wc);
   HWND hwnd = CreateWindow(
-    wc.lpszClassName, "DX12 Demo", WS_OVERLAPPEDWINDOW, 100, 100, 800, 600, nullptr, nullptr,
-    wc.hInstance, nullptr
+    wc.lpszClassName, "DX12 Demo", WS_OVERLAPPEDWINDOW, 100, 100, g_screenWidth, g_screenHeight,
+    nullptr, nullptr, wc.hInstance, nullptr
   );
   ShowWindow(hwnd, nCmdShow);
 
@@ -107,7 +128,7 @@ int WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow)
   }
 #endif
 
-  dxh::RenderContext rc{factory.Get(), hwnd, 800, 600};
+  dxh::RenderContext rc{factory.Get(), hwnd, g_screenWidth, g_screenHeight};
 
   dxh::TriangleMeshData<Vertex, uint16_t> boxMeshData =
     dxh::CreateUnitBoxWithNormal<Vertex, uint16_t>();
@@ -168,6 +189,7 @@ int WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow)
   rc.device->Get()->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(pso.GetAddressOf()));
 
   dxh::PerspectiveCamera cam;
+  cam.aspectRatio = rc.swapChain->Width() / static_cast<float>(rc.swapChain->Height());
 
   dxh::Timer timer;
   timer.Start("main");
@@ -209,15 +231,34 @@ int WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow)
     cb.ambient = g_ambientColor;
     constantBuffer.LoadElement(0, cb);
 
-    UpdateInstances(cb.time);
+    if (g_tickInstances) {
+      timer.Start("instances");
+      long long instanceTime = timer.TimeElapsed("instances");
+      float instanceTimeSec = static_cast<float>(instanceTime) / 1000.0f;
+      UpdateInstances(instanceTimeSec);
+    } else {
+      timer.Pause("instances");
+    }
 
     long long cullTime = 0;
     if (g_enableFrustumCulling) {
       DXH_SCOPED_AUTO_TIMER_OUT_RESULT(cullTime, dxh::Microseconds)
-      CullInstances(cam, FrustumCullingSpace::World);
+      
+      FrustumCullingSpace space = FrustumCullingSpace::World;
+      
+      CullingAcceleration acc;
+      if (g_enableOctreeCulling) {
+        acc = g_tickInstances ? CullingAcceleration::DynamicOctree
+                              : CullingAcceleration::StaticOctree;
+      } else {
+        acc = CullingAcceleration::None;
+      }
+
+      CullInstances(cam, space, acc);
     }
 
-    size_t instanceDrawCount = g_enableFrustumCulling ? g_cullCounter : g_instanceCount;
+    size_t instanceDrawCount = g_enableFrustumCulling ? g_culledInstanceIndices.size()
+                                                      : g_instanceCount;
 
     for (size_t i = 0; i < instanceDrawCount; ++i) {
       instanceBuffer.LoadElement(
@@ -233,10 +274,12 @@ int WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow)
       oss << " | ";
       oss << "FPS: " << std::fixed << std::setprecision(2) << fps;
       oss << " | ";
-      oss << "Instances drawed: " << instanceDrawCount << "/" << g_instanceCount;
+      oss << "Inst. drawed: " << instanceDrawCount << "/" << g_instanceCount;
       oss << " | ";
-      oss << "Culling time: " << std::setprecision(3) << static_cast<float>(cullTime) / 1000.f
+      oss << "Culltime: " << std::setprecision(3) << static_cast<float>(cullTime) / 1000.f
           << " ms";
+      oss << " | Mode: [" << GetModeString() << "]";
+
       SetWindowText(hwnd, oss.str().c_str());
       accumulatedFrames = 0;
       lastTimeStamp = time;
@@ -277,6 +320,15 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     case WM_KEYDOWN:
       if (wParam == 'C') {
         g_enableFrustumCulling = !g_enableFrustumCulling;
+      }
+      if (wParam == 'O') {
+        g_enableOctreeCulling = !g_enableOctreeCulling;
+        if (g_enableOctreeCulling) {
+          g_octreeBuilt = false;
+        }
+      }
+      if (wParam == 'M') {
+        g_tickInstances = !g_tickInstances;
       }
       return 0;
     case WM_DESTROY:
