@@ -24,11 +24,13 @@ public:
   float Z() const { return DirectX::XMVectorGetZ(vec); }
   float W() const { return DirectX::XMVectorGetW(vec); }
 
+  DirectX::XMFLOAT4 AsFloat4() const { return ToXMFLOAT4(vec); }
+  DirectX::XMFLOAT3 AsFloat3() const { return ToXMFLOAT3(vec); }
+  DirectX::XMVECTOR AsVector() const { return vec; }
+
 private:
   DirectX::XMVECTOR vec;
 };
-
-
 
 
 }  // namespace dxh
