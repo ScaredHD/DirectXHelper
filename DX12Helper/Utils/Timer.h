@@ -61,7 +61,7 @@ public:
   void Start(std::string name)
   {
     if (!Has(name)) {
-      timers.insert({name, TimeTrack{}});
+      timers.insert({name, TimeTrack<Duration, Clock>{}});
     }
     timers[name].Start();
   }
