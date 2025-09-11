@@ -5,11 +5,11 @@
 #include "AutoTimer.h"
 #include "Culling.h"
 #include "Octree.h"
-#include "spdlog/sinks/basic_file_sink.h"
-#include "spdlog/spdlog.h"
 
 
-auto g_logger = spdlog::basic_logger_mt("basic_logger", "instances.log", true);
+#define LOG_OCTREE
+
+auto g_logger = spdlog::basic_logger_mt("instance_logger", "instances.log", true);
 
 using namespace DirectX;
 
@@ -164,7 +164,7 @@ void RebuildSceneOctree()
 
   float fieldSize = FieldSize();
   float halfSize = fieldSize * 0.5f + 5.f;  // add some margin
-  float sceneHeight = 2.f * g_yOffsetAmplitude + 5.f;
+  float sceneHeight = 16.f * g_yOffsetAmplitude + 5.f;
   AABB sceneBox = {{-halfSize, -sceneHeight, -halfSize}, {halfSize, sceneHeight, halfSize}};
   g_sceneOctree = BuildSceneOctreeFromAABB(sceneBox, g_instanceSceneInfo);
 }
@@ -319,8 +319,6 @@ void CullOctreeNodes(const dxh::PerspectiveCamera& cam, const OctreeNode<Instanc
 
 bool g_octreeBuilt = false;
 
-#define LOG_OCTREE
-
 void CullInstances(
   const dxh::PerspectiveCamera& cam,
   FrustumCullingSpace space,
@@ -338,6 +336,7 @@ void CullInstances(
     float octreeBuildTime = 0;
     float octreeCullTime = 0;
     bool isDynamic = acceleration == CullingAcceleration::DynamicOctree;
+    size_t detachCount = 0;
     {
       DXH_SCOPED_AUTO_TIMER_OUT_RESULT(octreeBuildTime, dxh::Microseconds);
       if (!g_octreeBuilt) {
@@ -346,7 +345,10 @@ void CullInstances(
       } else {
         if (isDynamic) {
           for (size_t i = 0; i < g_instanceCount; ++i) {
-            UpdateOctreeObject(*g_sceneOctree, g_instanceSceneInfo[i]);
+            bool detachTriggerd = UpdateOctreeObject(*g_sceneOctree, g_instanceSceneInfo[i]);
+            if (detachTriggerd) {
+              ++detachCount;
+            }
           }
         }
       }
@@ -357,24 +359,32 @@ void CullInstances(
     }
 #if defined(LOG_OCTREE)
     g_logger->info("  Octree build/update time: {} ms", octreeBuildTime / 1000.f);
+    if (isDynamic) {
+      g_logger->info("    *Octree dynamic update detach count: {}", detachCount);
+    }
     g_logger->info("  Octree culling time: {} ms", octreeCullTime / 1000.f);
-    g_logger->info("  Instances left: {}", g_culledInstanceIndices.size());
+    g_logger->info("    Instances left: {}", g_culledInstanceIndices.size());
 #endif
   }
 
-  switch (space) {
-    case FrustumCullingSpace::Local:
-      CullInstancesLocalSpace(cam);
-      break;
-    case FrustumCullingSpace::World:
-      CullInstancesWorldSpace(cam);
-      break;
-    default:
-      break;
+  float cullTime = 0.f;
+  {
+    DXH_SCOPED_AUTO_TIMER_OUT_RESULT(cullTime, dxh::Microseconds);
+    switch (space) {
+      case FrustumCullingSpace::Local:
+        CullInstancesLocalSpace(cam);
+        break;
+      case FrustumCullingSpace::World:
+        CullInstancesWorldSpace(cam);
+        break;
+      default:
+        break;
+    }
   }
 
 #if defined(LOG_OCTREE)
-  g_logger->info("Final instances after culling: {}", g_culledInstanceIndices.size());
+  g_logger->info("  Per-object culling time: {} ms", cullTime / 1000.f);
+  g_logger->info("    Final instances after culling: {}", g_culledInstanceIndices.size());
   g_logger->info("Culling done.\n");
 #endif
 }

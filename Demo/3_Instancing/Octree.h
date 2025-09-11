@@ -143,7 +143,7 @@ void InsertObject(OctreeNode<ObjectType>& node, ObjectType& obj, OctreeNode<Obje
       for (size_t i = 0; i < 8; ++i) {
         assert(!node.children[i]);
         assert(subBoxes[i].IsValid());
-        node.children[i] = new OctreeNode<ObjectType>(subBoxes[i], node.depth + 1, 1.25f);
+        node.children[i] = new OctreeNode<ObjectType>(subBoxes[i], node.depth + 1, 1.5f);
         node.children[i]->parent = &node;
       }
 
@@ -187,7 +187,7 @@ BuildSceneOctreeFromAABB(const AABB& sceneBox, std::vector<ObjectType>& objects)
 }
 
 template<typename ObjectType>
-void UpdateOctreeObject(OctreeNode<ObjectType>& root, ObjectType& obj)
+bool UpdateOctreeObject(OctreeNode<ObjectType>& root, ObjectType& obj)
 {
   assert(root.IsValid());
   assert(obj.worldAABB.IsValid());
@@ -204,10 +204,12 @@ void UpdateOctreeObject(OctreeNode<ObjectType>& root, ObjectType& obj)
     if (auto* child = currentNode->GetContainingChild(objBox)) {
       currentNode->Detach(obj);
       InsertObject(*child, obj, root);
+      return true;
     }
-    return;
+    return false;
   }
 
   currentNode->Detach(obj);
   InsertObject(root, obj, root);
+  return true;
 }

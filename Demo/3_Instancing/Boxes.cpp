@@ -194,12 +194,16 @@ int WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow)
   dxh::Timer timer;
   timer.Start("main");
 
+  dxh::Timer<dxh::Microseconds> frameTimer;
+  frameTimer.Start("frame");
+
   long long lastTimeStamp = 0;
   float statPeriodMs = 500.f;  // stat update period in ms
   size_t accumulatedFrames = 0;
 
   bool isRunning = true;
   while (isRunning) {
+    float frameStart = frameTimer.TimeElapsed("frame");
     MSG msg;
     while (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE)) {
       if (msg.message == WM_QUIT) {
@@ -213,10 +217,6 @@ int WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow)
     long long time = timer.TimeElapsed("main");
     float timeSec = static_cast<float>(time) / 1000.0f;
     ++accumulatedFrames;
-
-    auto elapsedSinceLastStampMs = static_cast<float>(time - lastTimeStamp);
-    float elapsedSinceLastStampSec = elapsedSinceLastStampMs / 1000.0f;
-
 
     cam.position = CameraPosition(timeSec, 0.1f);
     cam.lookAt = {0.0f, 0.0f, 0.0f};
@@ -243,9 +243,9 @@ int WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow)
     long long cullTime = 0;
     if (g_enableFrustumCulling) {
       DXH_SCOPED_AUTO_TIMER_OUT_RESULT(cullTime, dxh::Microseconds)
-      
+
       FrustumCullingSpace space = FrustumCullingSpace::World;
-      
+
       CullingAcceleration acc;
       if (g_enableOctreeCulling) {
         acc = g_tickInstances ? CullingAcceleration::DynamicOctree
@@ -266,6 +266,8 @@ int WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow)
       );
     }
 
+    auto elapsedSinceLastStampMs = static_cast<float>(time - lastTimeStamp);
+    float elapsedSinceLastStampSec = elapsedSinceLastStampMs / 1000.0f;
     if (elapsedSinceLastStampMs >= statPeriodMs) {
       // update fps every second
       float fps = static_cast<float>(accumulatedFrames) / elapsedSinceLastStampSec;
@@ -276,8 +278,7 @@ int WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow)
       oss << " | ";
       oss << "Inst. drawed: " << instanceDrawCount << "/" << g_instanceCount;
       oss << " | ";
-      oss << "Culltime: " << std::setprecision(3) << static_cast<float>(cullTime) / 1000.f
-          << " ms";
+      oss << "Culltime: " << std::setprecision(3) << static_cast<float>(cullTime) / 1000.f << " ms";
       oss << " | Mode: [" << GetModeString() << "]";
 
       SetWindowText(hwnd, oss.str().c_str());
@@ -310,6 +311,11 @@ int WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow)
     rc.CloseAndExecute(cmdList);
     rc.FlushCommandQueue();
     rc.Present();
+
+    float frameEnd = frameTimer.TimeElapsed("frame");
+    frameTimer.Reset("frame");
+    auto logger = spdlog::get("instance_logger");
+    logger->info("Frame time: {} ms", (frameEnd - frameStart) / 1000.f);
   }
 }
 
